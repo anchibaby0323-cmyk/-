@@ -17,13 +17,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore NovaTune source tree
+      - name: Restore verified NovaTune source tree
         shell: bash
         run: |
+          cat .novatune/chunk00 .novatune/chunk01 .novatune/chunk02 .novatune/chunk03 .novatune/chunk04 .novatune/chunk05 .novatune/chunk06 .novatune/chunk07 .novatune/c80 .novatune/c81_0 .novatune/c81_1 .novatune/c81_2 .novatune/c81_3 .novatune/chunk09 > novatune_project.tgz.b64
+          echo "2b1e68cbde2fb3950a6da8dde3eade741c05f56982c3db4c121c93b8d23d5211  novatune_project.tgz.b64" | sha256sum -c -
           base64 -d novatune_project.tgz.b64 > novatune_project.tgz
+          echo "7ca3cb26ce2aa0c42e273b78ac14a13a19654c73bfca63124edc2fe820a61808  novatune_project.tgz" | sha256sum -c -
           tar -xzf novatune_project.tgz
-          cp -a NovaTuneEngine/. .
-          rm -rf NovaTuneEngine novatune_project.tgz novatune_project.tgz.b64
+          rm -f novatune_project.tgz novatune_project.tgz.b64
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -37,10 +39,10 @@ jobs:
       - name: Install Android 15 SDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Set up Gradle 8.9
+      - name: Set up Gradle 9.6
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.9"
+          gradle-version: "9.6.0"
 
       - name: Build debug APK
         shell: bash
