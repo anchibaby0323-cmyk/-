@@ -14,10 +14,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import com.novatune.engine.core.PerformanceBooster
+import com.novatune.engine.profile.AppProfile
+import com.novatune.engine.profile.AppProfileStore
 import com.novatune.engine.service.OverlayService
 import com.novatune.engine.ui.GamingDashboardScreen
 import com.novatune.engine.ui.NovaTuneTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var booster: PerformanceBooster
@@ -42,6 +47,7 @@ class MainActivity : ComponentActivity() {
                     overlayRunning = overlayRunning,
                     onRequestOverlayPermission = ::openOverlayPermission,
                     onToggleOverlay = ::toggleOverlay,
+                    onLaunchProfile = ::launchProfile,
                     onBoost = booster::runManualLocalReclaim
                 )
             }
@@ -60,11 +66,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openOverlayPermission() {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:$packageName")
+        startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
         )
-        startActivity(intent)
     }
 
     private fun toggleOverlay() {
@@ -73,7 +80,38 @@ class MainActivity : ComponentActivity() {
             overlayRunning = false
             return
         }
+        startOverlay(null)
+    }
 
+    private fun launchProfile(profile: AppProfile) {
+        lifecycleScope.launch {
+            AppProfileStore.saveProfile(this@MainActivity, profile)
+
+            if (profile.preLaunchReclaim) {
+                booster.runManualLocalReclaim()
+            }
+
+            if (profile.autoSidebar) {
+                if (!Settings.canDrawOverlays(this@MainActivity)) {
+                    openOverlayPermission()
+                    return@launch
+                }
+                startOverlay(profile)
+                delay(180)
+            } else if (OverlayService.isRunning) {
+                stopService(Intent(this@MainActivity, OverlayService::class.java))
+                overlayRunning = false
+            }
+
+            val launchIntent = packageManager.getLaunchIntentForPackage(profile.packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+            }
+        }
+    }
+
+    private fun startOverlay(profile: AppProfile?) {
         if (!Settings.canDrawOverlays(this)) {
             openOverlayPermission()
             return
@@ -86,7 +124,15 @@ class MainActivity : ComponentActivity() {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        ContextCompat.startForegroundService(this, Intent(this, OverlayService::class.java))
+        val serviceIntent = Intent(this, OverlayService::class.java).apply {
+            if (profile != null) {
+                putExtra(OverlayService.EXTRA_LABEL, profile.label)
+                putExtra(OverlayService.EXTRA_PACKAGE, profile.packageName)
+                putExtra(OverlayService.EXTRA_KEEP_SCREEN_ON, profile.keepScreenOn)
+                putExtra(OverlayService.EXTRA_SIDE, profile.sidebarSide)
+            }
+        }
+        ContextCompat.startForegroundService(this, serviceIntent)
         overlayRunning = true
     }
 }

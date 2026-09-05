@@ -14,7 +14,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,8 +26,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,8 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novatune.engine.core.BoostResult
 import com.novatune.engine.core.DeviceStats
+import com.novatune.engine.profile.AppProfile
+import com.novatune.engine.profile.AppProfileStore
+import com.novatune.engine.profile.LauncherApp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -68,6 +75,7 @@ fun GamingDashboardScreen(
     overlayRunning: Boolean,
     onRequestOverlayPermission: () -> Unit,
     onToggleOverlay: () -> Unit,
+    onLaunchProfile: (AppProfile) -> Unit,
     onBoost: suspend () -> BoostResult
 ) {
     val stats by statsFlow.collectAsState()
@@ -99,13 +107,13 @@ fun GamingDashboardScreen(
                 letterSpacing = 2.sp
             )
             Text(
-                text = "REAL-TIME SYSTEM HUD",
+                text = "APP PROFILES + SIDEBAR",
                 color = NovaWhite,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Black
             )
             Text(
-                text = "真實 Android 公開 API 遙測 · 無 Root · 無 Shizuku · 無 ADB",
+                text = "每個 App 可單獨設定 NovaTune 啟動流程與霓虹側邊欄",
                 color = NovaMuted,
                 fontSize = 13.sp
             )
@@ -132,6 +140,12 @@ fun GamingDashboardScreen(
 
             TelemetryPanel(stats)
 
+            AppProfilesPanel(
+                overlayGranted = overlayGranted,
+                onRequestOverlayPermission = onRequestOverlayPermission,
+                onLaunchProfile = onLaunchProfile
+            )
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -140,11 +154,16 @@ fun GamingDashboardScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("GAMING OVERLAY", color = NovaWhite, fontWeight = FontWeight.Bold)
+                Text("SIDEBAR HUD", color = NovaWhite, fontWeight = FontWeight.Bold)
                 Text(
                     if (overlayGranted) "懸浮窗權限：已授權" else "懸浮窗權限：尚未授權",
                     color = if (overlayGranted) NovaCyan else NovaMuted,
                     fontSize = 13.sp
+                )
+                Text(
+                    "新版側欄是 62dp 霓虹浮動把手，可直接點擊或向內滑動展開。",
+                    color = NovaMuted,
+                    fontSize = 12.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
@@ -159,7 +178,7 @@ fun GamingDashboardScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = NovaCyan)
                     ) {
                         Text(
-                            if (overlayRunning) "停止 HUD" else "啟動 HUD",
+                            if (overlayRunning) "停止側欄" else "啟動側欄",
                             color = Color.Black,
                             fontWeight = FontWeight.Bold
                         )
@@ -177,7 +196,7 @@ fun GamingDashboardScreen(
             ) {
                 Text("LOCAL RECLAIM", color = NovaCyan, fontWeight = FontWeight.Bold)
                 Text(
-                    "只整理 NovaTune 自己的 cache / Java heap，不偽裝成能清別的遊戲。",
+                    "只整理 NovaTune 自己的 cache / Java heap；也可以設成指定 App 啟動前自動執行。",
                     color = NovaMuted,
                     fontSize = 13.sp
                 )
@@ -213,13 +232,285 @@ fun GamingDashboardScreen(
             }
 
             Text(
-                "GC 可能造成短暫停頓，因此只在你手動觸發時執行；RAM 前後差值是真實即時取樣。",
+                "無 Root／Shizuku／ADB 時，Android 不允許 NovaTune 強制改其他 App 的 CPU、GPU、GC 或 Socket；Profile 只使用公開 API 做可驗證的啟動前自我整理與 Overlay 行為。",
                 color = NovaMuted,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
             )
             Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+@Composable
+private fun AppProfilesPanel(
+    overlayGranted: Boolean,
+    onRequestOverlayPermission: () -> Unit,
+    onLaunchProfile: (AppProfile) -> Unit
+) {
+    val context = LocalContext.current
+    var apps by remember { mutableStateOf<List<LauncherApp>>(emptyList()) }
+    var profiles by remember { mutableStateOf(AppProfileStore.loadProfiles(context)) }
+    var pickerOpen by remember { mutableStateOf(false) }
+    var search by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf<AppProfile?>(null) }
+
+    LaunchedEffect(Unit) {
+        apps = withContext(Dispatchers.Default) { AppProfileStore.loadLaunchableApps(context) }
+        profiles = AppProfileStore.loadProfiles(context)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NovaPanel.copy(alpha = 0.96f), RoundedCornerShape(22.dp))
+            .border(1.dp, NovaCyan.copy(alpha = 0.38f), RoundedCornerShape(22.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("APP PROFILES", color = NovaCyan, fontWeight = FontWeight.Black)
+                Text("為不同 App 儲存獨立側欄與啟動設定", color = NovaMuted, fontSize = 11.sp)
+            }
+            Text("${profiles.size}", color = NovaPurple, fontSize = 20.sp, fontWeight = FontWeight.Black)
+        }
+
+        if (profiles.isEmpty()) {
+            Text("還沒有設定。先選一個遊戲或 App。", color = NovaMuted, fontSize = 12.sp)
+        } else {
+            profiles.forEach { profile ->
+                SavedProfileCard(
+                    profile = profile,
+                    onEdit = { editing = profile },
+                    onLaunch = { onLaunchProfile(profile) }
+                )
+            }
+        }
+
+        Button(
+            onClick = { pickerOpen = !pickerOpen },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = NovaPurple)
+        ) {
+            Text(if (pickerOpen) "關閉 App 選擇器" else "＋ 新增 / 選擇 App")
+        }
+
+        if (pickerOpen) {
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("搜尋 App") },
+                singleLine = true
+            )
+            val filtered = apps.filter {
+                search.isBlank() ||
+                    it.label.contains(search, ignoreCase = true) ||
+                    it.packageName.contains(search, ignoreCase = true)
+            }
+            filtered.take(18).forEach { app ->
+                AppChoiceRow(app) {
+                    editing = AppProfileStore.loadProfile(context, app.packageName, app.label)
+                    pickerOpen = false
+                }
+            }
+            if (filtered.size > 18) {
+                Text("還有 ${filtered.size - 18} 個結果，輸入名稱可縮小範圍。", color = NovaMuted, fontSize = 10.sp)
+            }
+        }
+
+        editing?.let { profile ->
+            ProfileEditor(
+                profile = profile,
+                overlayGranted = overlayGranted,
+                onRequestOverlayPermission = onRequestOverlayPermission,
+                onChange = { editing = it },
+                onSave = {
+                    AppProfileStore.saveProfile(context, it)
+                    profiles = AppProfileStore.loadProfiles(context)
+                    editing = it
+                },
+                onLaunch = {
+                    AppProfileStore.saveProfile(context, it)
+                    profiles = AppProfileStore.loadProfiles(context)
+                    onLaunchProfile(it)
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SavedProfileCard(
+    profile: AppProfile,
+    onEdit: () -> Unit,
+    onLaunch: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NovaBlack.copy(alpha = 0.55f), RoundedCornerShape(15.dp))
+            .border(1.dp, NovaPurple.copy(alpha = 0.34f), RoundedCornerShape(15.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(profile.label, color = NovaWhite, fontWeight = FontWeight.Bold)
+        Text(profile.packageName, color = NovaMuted, fontSize = 9.sp, maxLines = 1)
+        Text(
+            "側欄 ${if (profile.autoSidebar) "ON" else "OFF"} · ${if (profile.sidebarSide == "LEFT") "左側" else "右側"} · 啟動前整理 ${if (profile.preLaunchReclaim) "ON" else "OFF"}",
+            color = NovaCyan,
+            fontSize = 10.sp
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onLaunch,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = NovaCyan)
+            ) {
+                Text("啟動", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+            Button(
+                onClick = onEdit,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = NovaPanel)
+            ) {
+                Text("編輯", color = NovaWhite)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppChoiceRow(app: LauncherApp, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NovaBlack.copy(alpha = 0.45f), RoundedCornerShape(13.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(app.label, color = NovaWhite, fontWeight = FontWeight.SemiBold)
+            Text(app.packageName, color = NovaMuted, fontSize = 9.sp, maxLines = 1)
+        }
+        Text("選擇 ›", color = NovaCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ProfileEditor(
+    profile: AppProfile,
+    overlayGranted: Boolean,
+    onRequestOverlayPermission: () -> Unit,
+    onChange: (AppProfile) -> Unit,
+    onSave: (AppProfile) -> Unit,
+    onLaunch: (AppProfile) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NovaBlack.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
+            .border(1.dp, NovaCyan.copy(alpha = 0.42f), RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("EDIT PROFILE // ${profile.label}", color = NovaCyan, fontWeight = FontWeight.Black)
+
+        ToggleRow(
+            label = "啟動前降低 NovaTune 記憶體占用",
+            description = "手動執行 NovaTune 自身 local reclaim 後再開 App",
+            checked = profile.preLaunchReclaim,
+            onCheckedChange = { onChange(profile.copy(preLaunchReclaim = it)) }
+        )
+        ToggleRow(
+            label = "啟動時顯示側邊欄",
+            description = "在目標 App 上方保留可點擊的 Nova 浮動把手",
+            checked = profile.autoSidebar,
+            onCheckedChange = { onChange(profile.copy(autoSidebar = it)) }
+        )
+        ToggleRow(
+            label = "保持螢幕亮起",
+            description = "側邊欄顯示期間對 Overlay 使用 KEEP_SCREEN_ON",
+            checked = profile.keepScreenOn,
+            onCheckedChange = { onChange(profile.copy(keepScreenOn = it)) }
+        )
+
+        Text("側邊欄位置", color = NovaMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { onChange(profile.copy(sidebarSide = "LEFT")) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (profile.sidebarSide == "LEFT") NovaCyan else NovaPanel
+                )
+            ) {
+                Text("左側", color = if (profile.sidebarSide == "LEFT") Color.Black else NovaWhite)
+            }
+            Button(
+                onClick = { onChange(profile.copy(sidebarSide = "RIGHT")) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (profile.sidebarSide == "RIGHT") NovaCyan else NovaPanel
+                )
+            ) {
+                Text("右側", color = if (profile.sidebarSide == "RIGHT") Color.Black else NovaWhite)
+            }
+        }
+
+        if (profile.autoSidebar && !overlayGranted) {
+            Text("要顯示側邊欄，需要先授權『顯示在其他 App 上層』。", color = NovaMuted, fontSize = 10.sp)
+            Button(
+                onClick = onRequestOverlayPermission,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = NovaPurple)
+            ) {
+                Text("開啟懸浮窗權限")
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { onSave(profile) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = NovaPanel)
+            ) {
+                Text("儲存", color = NovaWhite)
+            }
+            Button(
+                onClick = { onLaunch(profile) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = NovaCyan)
+            ) {
+                Text("儲存並啟動", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToggleRow(
+    label: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, color = NovaWhite, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(description, color = NovaMuted, fontSize = 9.sp, lineHeight = 12.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
