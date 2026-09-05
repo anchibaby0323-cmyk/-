@@ -20,7 +20,7 @@ jobs:
       - name: Restore NovaTune source tree
         shell: bash
         run: |
-          cat .novatune/chunk00 .novatune/chunk01 .novatune/chunk02 .novatune/chunk03 .novatune/chunk04 .novatune/chunk05 .novatune/chunk06 .novatune/chunk07 .novatune/chunk08 .novatune/chunk09 > novatune_project.tgz.b64
+          cat .novatune/chunk00 .novatune/chunk01 .novatune/chunk02 .novatune/chunk03 .novatune/chunk04 .novatune/chunk05 .novatune/chunk06 .novatune/chunk07 .novatune/c80 .novatune/c81 .novatune/chunk09 > novatune_project.tgz.b64
           echo "2b1e68cbde2fb3950a6da8dde3eade741c05f56982c3db4c121c93b8d23d5211  novatune_project.tgz.b64" | sha256sum -c -
           base64 -d novatune_project.tgz.b64 > novatune_project.tgz
           echo "7ca3cb26ce2aa0c42e273b78ac14a13a19654c73bfca63124edc2fe820a61808  novatune_project.tgz" | sha256sum -c -
