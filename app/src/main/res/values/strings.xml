@@ -1,3 +1,1 @@
-<resources>
-    <string name="app_name">NovaTune Engine</string>
-</resources>
+<resources><string name="app_name">NovaTune Engine</string><string name="accessibility_description">只偵測目前前景 App 的套件名稱，用來自動套用你儲存的 NovaTune Profile；不讀取畫面文字，也不自動點擊。</string></resources>
