@@ -49,15 +49,27 @@ jobs:
           gradle :app:assembleDebug --stacktrace > /tmp/novatune-build.log 2>&1
           status=$?
           if [ "$status" -ne 0 ]; then
-            echo "===== NOVATUNE COMPILER ERRORS ====="
-            grep -E -i '(^e:| error:|unresolved reference|cannot infer|none of the following|compilation error|what went wrong|exception is:)' /tmp/novatune-build.log | tail -n 180 || true
-            echo "===== FINAL BUILD LOG ====="
-            tail -n 140 /tmp/novatune-build.log
+            {
+              echo "===== NOVATUNE COMPILER ERRORS ====="
+              grep -E -i '(^e:| error:|unresolved reference|cannot infer|none of the following|compilation error|what went wrong|exception is:)' /tmp/novatune-build.log | tail -n 220 || true
+              echo "===== FINAL BUILD LOG ====="
+              tail -n 180 /tmp/novatune-build.log
+            } > novatune-build-errors.txt
+            cat novatune-build-errors.txt
             exit "$status"
           fi
           tail -n 50 /tmp/novatune-build.log
 
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaTune-build-errors
+          path: novatune-build-errors.txt
+          if-no-files-found: warn
+
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: NovaTune-Engine-debug
