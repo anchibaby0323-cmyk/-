@@ -1,0 +1,6 @@
+<resources>
+    <color name="mp_primary">#6750A4</color>
+    <color name="mp_on_primary">#FFFFFF</color>
+    <color name="mp_surface">#FFFBFE</color>
+    <color name="mp_on_surface">#1C1B1F</color>
+</resources>
