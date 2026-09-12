@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'mobilepilot/**'
+      - 'mobilepilot/project/**'
       - '.github/workflows/build-mobilepilot.yml'
 
 jobs:
@@ -28,28 +28,17 @@ jobs:
         with:
           gradle-version: '9.1.0'
 
-      - name: Restore MobilePilot source
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f mobilepilot/MobilePilot-0.1.0-source.zip.b64
-          base64 --decode mobilepilot/MobilePilot-0.1.0-source.zip.b64 > /tmp/mobilepilot.zip
-          rm -rf /tmp/mobilepilot-src
-          mkdir -p /tmp/mobilepilot-src
-          unzip -q /tmp/mobilepilot.zip -d /tmp/mobilepilot-src
-          test -f /tmp/mobilepilot-src/MobilePilot/settings.gradle.kts
-
       - name: Create Gradle wrapper
-        working-directory: /tmp/mobilepilot-src/MobilePilot
+        working-directory: mobilepilot/project
         run: gradle wrapper --gradle-version 9.1.0
 
       - name: Build debug APK
-        working-directory: /tmp/mobilepilot-src/MobilePilot
+        working-directory: mobilepilot/project
         run: ./gradlew --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: MobilePilot-debug-apk
-          path: /tmp/mobilepilot-src/MobilePilot/app/build/outputs/apk/debug/app-debug.apk
+          path: mobilepilot/project/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
