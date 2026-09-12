@@ -1,0 +1,55 @@
+name: Build MobilePilot APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'mobilepilot/**'
+      - '.github/workflows/build-mobilepilot.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 9.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
+
+      - name: Restore MobilePilot source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f mobilepilot/MobilePilot-0.1.0-source.zip.b64
+          base64 --decode mobilepilot/MobilePilot-0.1.0-source.zip.b64 > /tmp/mobilepilot.zip
+          rm -rf /tmp/mobilepilot-src
+          mkdir -p /tmp/mobilepilot-src
+          unzip -q /tmp/mobilepilot.zip -d /tmp/mobilepilot-src
+          test -f /tmp/mobilepilot-src/MobilePilot/settings.gradle.kts
+
+      - name: Create Gradle wrapper
+        working-directory: /tmp/mobilepilot-src/MobilePilot
+        run: gradle wrapper --gradle-version 9.1.0
+
+      - name: Build debug APK
+        working-directory: /tmp/mobilepilot-src/MobilePilot
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MobilePilot-debug-apk
+          path: /tmp/mobilepilot-src/MobilePilot/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
