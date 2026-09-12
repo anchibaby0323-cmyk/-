@@ -5,8 +5,16 @@
 
     <application
         android:allowBackup="false"
-        android:label="MTZ 正式匯入測試"
+        android:label="MTZ 正式匯入測試 v0.2"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <activity
             android:name=".MainActivity"
