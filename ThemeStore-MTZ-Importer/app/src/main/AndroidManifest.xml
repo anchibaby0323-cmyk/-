@@ -5,7 +5,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="MTZ 官方解析套用 v0.9"
+        android:label="MTZ 官方解析套用 v0.10"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <provider
