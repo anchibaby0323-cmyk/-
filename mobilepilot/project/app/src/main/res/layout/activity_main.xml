@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="20dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:text="MobilePilot"
+            android:textStyle="bold"
+            android:textSize="28sp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:id="@+id/status"
+            android:text="正在檢查狀態…"
+            android:textSize="15sp"
+            android:paddingTop="8dp"
+            android:paddingBottom="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <Button android:id="@+id/btnAccessibility"
+            android:text="開啟無障礙設定"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/btnNotifications"
+            android:text="開啟通知存取"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/btnShizuku"
+            android:text="要求 Shizuku 授權"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/btnOverlay"
+            android:text="開啟浮動球權限"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/btnStartServer"
+            android:text="啟動本機 MCP Server"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/btnStopServer"
+            android:text="停止本機 MCP Server"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <Button android:id="@+id/btnBubble"
+            android:text="啟動浮動球"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+
+        <CheckBox
+            android:id="@+id/autoStart"
+            android:text="開機後自動啟動本機 Server"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+
+        <EditText
+            android:id="@+id/testCommand"
+            android:hint="本機測試，例如：開啟設定、返回、Home"
+            android:singleLine="true"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <Button android:id="@+id/btnRunCommand"
+            android:text="執行本機自然語言快捷測試"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+
+        <TextView
+            android:id="@+id/result"
+            android:text=""
+            android:textIsSelectable="true"
+            android:paddingTop="12dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+</ScrollView>
