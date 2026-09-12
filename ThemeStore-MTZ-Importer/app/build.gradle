@@ -10,8 +10,8 @@ android {
         applicationId 'com.anchibaby.mtzimporter'
         minSdk 27
         targetSdk 35
-        versionCode 10
-        versionName '0.10.0-temp-root'
+        versionCode 11
+        versionName '0.11.0-registry-diff'
     }
 
     buildTypes {
