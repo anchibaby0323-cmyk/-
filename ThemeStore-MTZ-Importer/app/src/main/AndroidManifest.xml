@@ -5,7 +5,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Theme Manager 接手診斷 v0.6"
+        android:label="本機主題登錄診斷 v0.7"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <provider
