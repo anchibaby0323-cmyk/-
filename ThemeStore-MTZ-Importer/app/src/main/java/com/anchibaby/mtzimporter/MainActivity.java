@@ -33,27 +33,47 @@ public class MainActivity extends Activity {
     private TextView status;
     private TextView picked;
     private File stagedFile;
+    private boolean binderReady = false;
+
+    private final Shizuku.OnBinderReceivedListener binderReceivedListener = () -> runOnUiThread(() -> {
+        binderReady = true;
+        appendStatus("✓ 已收到 Shizuku Binder");
+        refreshShizukuState();
+    });
+
+    private final Shizuku.OnBinderDeadListener binderDeadListener = () -> runOnUiThread(() -> {
+        binderReady = false;
+        appendStatus("! Shizuku Binder 已中斷，請確認 Shizuku 仍在執行");
+    });
 
     private final Shizuku.OnRequestPermissionResultListener permissionListener = (requestCode, grantResult) -> {
         if (requestCode == REQ_SHIZUKU) {
-            appendStatus(grantResult == PackageManager.PERMISSION_GRANTED
+            runOnUiThread(() -> appendStatus(grantResult == PackageManager.PERMISSION_GRANTED
                     ? "✓ Shizuku 權限已授予"
-                    : "✗ Shizuku 權限被拒絕");
+                    : "✗ Shizuku 權限被拒絕"));
         }
     };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Shizuku.addRequestPermissionResultListener(permissionListener);
         setContentView(buildUi());
+
+        appendStatus("版本：0.2.0 experimental");
         appendStatus("目標：Xiaomi 個性主題 3.0.5.14-global");
-        appendStatus("此測試版只走官方 Import staging / Local Resource 流程，不偽造 Rights 或官方簽章。");
+        appendStatus("正在等待 Shizuku Binder…");
+
+        Shizuku.addBinderReceivedListenerSticky(binderReceivedListener);
+        Shizuku.addBinderDeadListener(binderDeadListener);
+        Shizuku.addRequestPermissionResultListener(permissionListener);
+
         refreshShizukuState();
     }
 
     @Override
     protected void onDestroy() {
+        Shizuku.removeBinderReceivedListener(binderReceivedListener);
+        Shizuku.removeBinderDeadListener(binderDeadListener);
         Shizuku.removeRequestPermissionResultListener(permissionListener);
         executor.shutdownNow();
         super.onDestroy();
@@ -66,13 +86,13 @@ public class MainActivity extends Activity {
         root.setPadding(p, p, p, p);
 
         TextView title = new TextView(this);
-        title.setText("MTZ 正式匯入測試");
+        title.setText("MTZ 正式匯入測試 v0.2");
         title.setTextSize(24);
         title.setPadding(0, 0, 0, dp(8));
         root.addView(title);
 
         TextView desc = new TextView(this);
-        desc.setText("選擇任意 .mtz → Shizuku 複製到 Theme Manager 的 Import staging → 呼叫官方 Local Resource 頁面。\n\n若官方授權檢查拒絕，不會改走 ApplyThemeForScreenshot 假裝成功。");
+        desc.setText("這版修正 Shizuku Binder 接收。\n\n選擇任意 .mtz → Shizuku 複製到 Theme Manager 的 Import staging → 呼叫官方 Local Resource 頁面。若官方授權檢查拒絕，不會改走 ApplyThemeForScreenshot 假裝成功。");
         desc.setTextSize(15);
         desc.setPadding(0, 0, 0, dp(16));
         root.addView(desc);
@@ -121,30 +141,39 @@ public class MainActivity extends Activity {
     private void refreshShizukuState() {
         try {
             if (!Shizuku.pingBinder()) {
-                appendStatus("! Shizuku Binder 尚未連線");
+                binderReady = false;
+                appendStatus("! 尚未收到可用的 Shizuku Binder；若 Shizuku 已啟動，請等待數秒或重新開啟本 App");
                 return;
             }
-            appendStatus(Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-                    ? "✓ Shizuku 已連線且有權限"
-                    : "! Shizuku 已連線，但尚未授權本 App");
+            binderReady = true;
+            int permission = Shizuku.checkSelfPermission();
+            if (permission == PackageManager.PERMISSION_GRANTED) {
+                appendStatus("✓ Shizuku Binder 正常，且本 App 已授權");
+            } else if (Shizuku.shouldShowRequestPermissionRationale()) {
+                appendStatus("! Shizuku 已連線，但權限曾被拒絕；請到 Shizuku 應用程式管理重新允許");
+            } else {
+                appendStatus("! Shizuku 已連線，等待授權本 App");
+            }
         } catch (Throwable t) {
-            appendStatus("! 無法讀取 Shizuku 狀態：" + t);
+            appendStatus("! Shizuku 狀態檢查失敗：" + t.getClass().getSimpleName() + ": " + t.getMessage());
         }
     }
 
     private void requestShizuku() {
         try {
-            if (!Shizuku.pingBinder()) {
-                appendStatus("✗ 找不到 Shizuku，請先啟動 Shizuku。");
+            if (!binderReady || !Shizuku.pingBinder()) {
+                appendStatus("! Binder 尚未就緒。請確認 Shizuku 顯示『Shizuku 正在執行』，再等幾秒後重試。");
+                refreshShizukuState();
                 return;
             }
             if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                appendStatus("✓ Shizuku 權限已存在");
+                appendStatus("✓ Shizuku 權限已存在，可以直接選擇 MTZ");
                 return;
             }
+            appendStatus("→ 正在向 Shizuku 請求權限…");
             Shizuku.requestPermission(REQ_SHIZUKU);
         } catch (Throwable t) {
-            appendStatus("✗ Shizuku 授權失敗：" + t);
+            appendStatus("✗ Shizuku 授權失敗：" + t.getClass().getSimpleName() + ": " + t.getMessage());
         }
     }
 
@@ -198,8 +227,8 @@ public class MainActivity extends Activity {
             appendStatus("✗ 請先選擇 MTZ");
             return;
         }
-        if (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-            appendStatus("✗ 需要 Shizuku 權限");
+        if (!binderReady || !Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            appendStatus("✗ Shizuku Binder 或權限尚未就緒");
             requestShizuku();
             return;
         }
@@ -240,7 +269,7 @@ public class MainActivity extends Activity {
 
     private void openThemeManager() {
         executor.execute(() -> {
-            if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+            if (binderReady && Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
                 CommandResult r = runShizuku("am start -W -n com.android.thememanager/com.android.thememanager.ThemeResourceTabActivity");
                 appendStatusFromWorker(r.output);
             } else {
@@ -270,7 +299,7 @@ public class MainActivity extends Activity {
             }
             code = p.waitFor();
         } catch (Throwable t) {
-            out.append(t.toString());
+            out.append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
         }
         return new CommandResult(code, out.toString().trim());
     }
