@@ -1,6 +1,5 @@
 package com.anchibaby.mtzimporter;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -20,13 +19,13 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Method;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import rikka.shizuku.Shizuku;
 
 public class MainActivity extends Activity {
-
     private static final int REQ_PICK_MTZ = 1001;
     private static final int REQ_SHIZUKU = 1002;
 
@@ -62,7 +61,6 @@ public class MainActivity extends Activity {
 
     private View buildUi() {
         int p = dp(18);
-
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(p, p, p, p);
@@ -74,7 +72,7 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView desc = new TextView(this);
-        desc.setText("選擇任意 .mtz → Shizuku 複製到 Theme Manager 的 ASYNC_IMPORT_THEME_PATH → 呼叫官方 Local Resource 頁面。\n\n若官方授權檢查拒絕，App 會保留錯誤，不會改走 ApplyThemeForScreenshot 假裝成功。");
+        desc.setText("選擇任意 .mtz → Shizuku 複製到 Theme Manager 的 Import staging → 呼叫官方 Local Resource 頁面。\n\n若官方授權檢查拒絕，不會改走 ApplyThemeForScreenshot 假裝成功。");
         desc.setTextSize(15);
         desc.setPadding(0, 0, 0, dp(16));
         root.addView(desc);
@@ -117,7 +115,6 @@ public class MainActivity extends Activity {
         scroll.addView(status);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-
         return root;
     }
 
@@ -127,8 +124,7 @@ public class MainActivity extends Activity {
                 appendStatus("! Shizuku Binder 尚未連線");
                 return;
             }
-            int p = Shizuku.checkSelfPermission();
-            appendStatus(p == PackageManager.PERMISSION_GRANTED
+            appendStatus(Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
                     ? "✓ Shizuku 已連線且有權限"
                     : "! Shizuku 已連線，但尚未授權本 App");
         } catch (Throwable t) {
@@ -139,7 +135,7 @@ public class MainActivity extends Activity {
     private void requestShizuku() {
         try {
             if (!Shizuku.pingBinder()) {
-                appendStatus("✗ 找不到 Shizuku。請先啟動 Shizuku。 ");
+                appendStatus("✗ 找不到 Shizuku，請先啟動 Shizuku。");
                 return;
             }
             if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
@@ -162,9 +158,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQ_PICK_MTZ || resultCode != RESULT_OK || data == null || data.getData() == null) {
-            return;
-        }
+        if (requestCode != REQ_PICK_MTZ || resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
         String name = getDisplayName(uri);
         if (name == null) name = "selected.mtz";
@@ -180,14 +174,12 @@ public class MainActivity extends Activity {
     private void stageUri(Uri uri, String name) {
         try {
             File stageDir = new File(getExternalFilesDir(null), "stage");
-            if (!stageDir.exists() && !stageDir.mkdirs()) {
-                throw new IllegalStateException("無法建立暫存資料夾");
-            }
+            if (!stageDir.exists() && !stageDir.mkdirs()) throw new IllegalStateException("無法建立暫存資料夾");
             File out = new File(stageDir, System.currentTimeMillis() + "_" + name);
             try (InputStream in = getContentResolver().openInputStream(uri);
                  FileOutputStream fos = new FileOutputStream(out)) {
                 if (in == null) throw new IllegalStateException("無法開啟所選檔案");
-                byte[] buf = new byte[1024 * 128];
+                byte[] buf = new byte[131072];
                 int n;
                 while ((n = in.read(buf)) >= 0) fos.write(buf, 0, n);
             }
@@ -226,17 +218,13 @@ public class MainActivity extends Activity {
             CommandResult copy = runShizuku(cmd);
             appendStatusFromWorker("copy exit=" + copy.exitCode + "\n" + copy.output);
             if (copy.exitCode != 0) {
-                appendStatusFromWorker("✗ 無法寫入 Xiaomi Import staging。這通常是 Shizuku/ROM 權限限制。 ");
+                appendStatusFromWorker("✗ 無法寫入 Xiaomi Import staging。這通常是 Shizuku/ROM 權限限制。");
                 return;
             }
 
             appendStatusFromWorker("✓ 已寫入：" + targetPath);
-
-            // Xiaomi Theme Manager 3.0.5.14-global exported ThemeDetailActivity supports
-            // android.intent.action.VIEW with scheme ViewLocalResource://view.local.resource/...
             String localUri = "ViewLocalResource://view.local.resource/" + targetName;
-            String viewCmd = "am start -W -a android.intent.action.VIEW"
-                    + " -d " + shq(localUri)
+            String viewCmd = "am start -W -a android.intent.action.VIEW -d " + shq(localUri)
                     + " -n com.android.thememanager/com.android.thememanager.activity.ThemeDetailActivity";
             CommandResult open = runShizuku(viewCmd);
             appendStatusFromWorker("ThemeDetailActivity exit=" + open.exitCode + "\n" + open.output);
@@ -245,35 +233,35 @@ public class MainActivity extends Activity {
                 appendStatusFromWorker("! Local Resource 入口沒有接受這個 URI，改為只開啟個性主題首頁。");
                 runShizuku("am start -W -n com.android.thememanager/com.android.thememanager.ThemeResourceTabActivity");
             } else {
-                appendStatusFromWorker("✓ 已把 Local Resource 請求交給官方 Theme Manager。請查看是否出現匯入/主題詳情，或『我的主題』是否新增項目。 ");
+                appendStatusFromWorker("✓ 已交給官方 Theme Manager。請查看是否出現匯入/主題詳情，或『我的主題』是否新增項目。");
             }
         });
     }
 
     private void openThemeManager() {
         executor.execute(() -> {
-            CommandResult r;
             if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                r = runShizuku("am start -W -n com.android.thememanager/com.android.thememanager.ThemeResourceTabActivity");
+                CommandResult r = runShizuku("am start -W -n com.android.thememanager/com.android.thememanager.ThemeResourceTabActivity");
                 appendStatusFromWorker(r.output);
             } else {
                 Intent launch = getPackageManager().getLaunchIntentForPackage("com.android.thememanager");
                 if (launch != null) {
                     launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     runOnUiThread(() -> startActivity(launch));
-                } else {
-                    appendStatusFromWorker("✗ 找不到 com.android.thememanager");
-                }
+                } else appendStatusFromWorker("✗ 找不到 com.android.thememanager");
             }
         });
     }
 
-    @SuppressWarnings("deprecation")
     private CommandResult runShizuku(String command) {
         StringBuilder out = new StringBuilder();
         int code = -1;
         try {
-            Process p = Shizuku.newProcess(new String[]{"sh", "-c", command}, null, null);
+            Method method = Shizuku.class.getDeclaredMethod("newProcess", String[].class, String[].class, String.class);
+            method.setAccessible(true);
+            Process p = (Process) method.invoke(null,
+                    new Object[]{new String[]{"sh", "-c", command}, null, null});
+            if (p == null) throw new IllegalStateException("Shizuku newProcess returned null");
             try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
                  BufferedReader er = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
                 String line;
@@ -290,7 +278,7 @@ public class MainActivity extends Activity {
     private String getDisplayName(Uri uri) {
         try (Cursor c = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst()) return c.getString(0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable ignored) {}
         return null;
     }
 
