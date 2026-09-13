@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
             .tag("switch_pro_keyfix")
             .processNameSuffix("privileged")
             .version(2)
-            .debuggable(BuildConfig.DEBUG)
+            .debuggable(true)
             .daemon(false)
     }
 
