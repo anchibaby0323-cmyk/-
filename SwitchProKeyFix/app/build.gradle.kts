@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.switchprokeyfix"
         minSdk = 30
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.3.1"
+        versionCode = 10
+        versionName = "0.4.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
