@@ -65,22 +65,23 @@ static int create_virtual_xbox(std::string* err){
  auto fail=[&](const std::string&w){if(err)*err=w+"："+strerror(errno);close(fd);return -1;};
  if(ioctl(fd,UI_SET_EVBIT,EV_KEY)<0||ioctl(fd,UI_SET_EVBIT,EV_ABS)<0||ioctl(fd,UI_SET_EVBIT,EV_SYN)<0)return fail("設定事件能力失敗");
 
- // Xbox Wireless Controller (AOSP Vendor_045e_Product_0b12.kl)
+ // Classic wired Xbox 360 identity: broad Android game compatibility.
  const int buttons[]={BTN_SOUTH,BTN_EAST,BTN_NORTH,BTN_WEST,BTN_TL,BTN_TR,BTN_SELECT,BTN_START,BTN_MODE,BTN_THUMBL,BTN_THUMBR,KEY_RECORD};
  for(int c:buttons) if(ioctl(fd,UI_SET_KEYBIT,c)<0)return fail("設定虛擬按鍵失敗");
 
- // Xbox-style ranges: sticks signed 16-bit, triggers 0..1023, D-pad hats -1..1.
+ // Xbox 360-style Linux input layout used by Android:
+ // left stick ABS_X/Y, right stick ABS_RX/RY, triggers ABS_Z/RZ, D-pad HAT0X/Y.
  if(!set_abs_manual(fd,ABS_X,-32768,32767,4096)||!set_abs_manual(fd,ABS_Y,-32768,32767,4096)||
     !set_abs_manual(fd,ABS_RX,-32768,32767,4096)||!set_abs_manual(fd,ABS_RY,-32768,32767,4096)||
-    !set_abs_manual(fd,ABS_Z,0,1023)||!set_abs_manual(fd,ABS_RZ,0,1023)||
-    !set_abs_manual(fd,ABS_HAT0X,-1,1)||!set_abs_manual(fd,ABS_HAT0Y,-1,1))return fail("設定虛擬 Xbox 軸失敗");
+    !set_abs_manual(fd,ABS_Z,0,255)||!set_abs_manual(fd,ABS_RZ,0,255)||
+    !set_abs_manual(fd,ABS_HAT0X,-1,1)||!set_abs_manual(fd,ABS_HAT0Y,-1,1))return fail("設定虛擬 Xbox 360 軸失敗");
 
  uinput_setup u{};
  u.id.bustype=BUS_USB;
  u.id.vendor=0x045e;
- u.id.product=0x0b12;
- u.id.version=0x050f;
- strncpy(u.name,"Xbox Wireless Controller",UINPUT_MAX_NAME_SIZE-1);
+ u.id.product=0x028e;
+ u.id.version=0x0114;
+ strncpy(u.name,"Microsoft X-Box 360 pad",UINPUT_MAX_NAME_SIZE-1);
  if(ioctl(fd,UI_DEV_SETUP,&u)<0)return fail("UI_DEV_SETUP 失敗");
  if(ioctl(fd,UI_DEV_CREATE)<0)return fail("UI_DEV_CREATE 失敗");
  usleep(180000);
@@ -102,7 +103,7 @@ static bool run_session(int src,const std::string& path){
 
  const SourceAxis sx=source_axis(src,ABS_X), sy=source_axis(src,ABS_Y), srx=source_axis(src,ABS_RX), sry=source_axis(src,ABS_RY);
  write_event(out,EV_ABS,ABS_Z,0);write_event(out,EV_ABS,ABS_RZ,0);write_event(out,EV_ABS,ABS_HAT0X,0);write_event(out,EV_ABS,ABS_HAT0Y,0);write_event(out,EV_SYN,SYN_REPORT,0);
- set_status("修正已啟動 ✅\n來源："+path+"\n自動重連 watchdog：開啟\n原手把已 EVIOCGRAB\n輸出：Xbox Wireless Controller (045e:0b12)\n完整映射：A/B/X/Y、十字鍵、雙搖桿、L/R、ZL/ZR、+/−、Home、截圖鍵");
+ set_status("修正已啟動 ✅\n來源："+path+"\n自動重連 watchdog：開啟\n原手把已 EVIOCGRAB\n輸出：Microsoft X-Box 360 pad (045e:028e)\n完整映射：A/B/X/Y、十字鍵、雙搖桿、L/R、ZL/ZR、+/−、Home；截圖鍵保留 Android Record 額外輸出");
 
  pollfd p{};p.fd=src;p.events=POLLIN;
  bool dpl=false,dpr=false,dpu=false,dpd=false;
@@ -116,16 +117,16 @@ static bool run_session(int src,const std::string& path){
    if(e.type==EV_KEY){
     int c=e.code;
 
-    // Switch physical labels -> Xbox logical buttons.
-    // Switch B is BTN_SOUTH, A is BTN_EAST; Xbox A is SOUTH, B is EAST.
+    // Printed Switch labels -> Android/Xbox logical A/B/X/Y.
+    // Raw Switch B=BTN_SOUTH and A=BTN_EAST, so swap only SOUTH/EAST.
     if(c==BTN_SOUTH)c=BTN_EAST;
     else if(c==BTN_EAST)c=BTN_SOUTH;
 
-    // ZL/ZR are digital on Switch Pro, but Xbox exposes analog trigger axes.
-    if(e.code==BTN_TL2) ok=write_event(out,EV_ABS,ABS_Z,e.value?1023:0);
-    else if(e.code==BTN_TR2) ok=write_event(out,EV_ABS,ABS_RZ,e.value?1023:0);
+    // Switch ZL/ZR are digital. Expose them through Xbox 360 trigger axes.
+    if(e.code==BTN_TL2) ok=write_event(out,EV_ABS,ABS_Z,e.value?255:0);
+    else if(e.code==BTN_TR2) ok=write_event(out,EV_ABS,ABS_RZ,e.value?255:0);
 
-    // Switch capture button (raw BTN_Z / 0x135) -> Xbox Series Share (KEY_RECORD / Android MEDIA_RECORD).
+    // Xbox 360 has no native Share button. Keep Switch Capture as an Android Record extra key.
     else if(e.code==BTN_Z) ok=write_event(out,EV_KEY,KEY_RECORD,e.value);
 
     // Robust D-pad fallback if the source reports buttons instead of HAT axes.
@@ -173,10 +174,10 @@ static std::string diagnostics_text(){
  std::string p;int s=open_switch_pro(&p);
  if(s>=0){char n[256]{};ioctl(s,EVIOCGNAME(sizeof(n)),n);r+="Switch Pro：已找到\n來源："+p+"\n名稱："+std::string(n[0]?n:"Nintendo Switch Pro Controller")+"\n";close(s);}else r+="Switch Pro：找不到 057e:2009 gamepad event\n";
  int u=open("/dev/uinput",O_WRONLY|O_NONBLOCK);if(u>=0){r+="/dev/uinput：可開啟 ✅\n";close(u);}else r+=std::string("/dev/uinput：無法開啟 ❌ (")+strerror(errno)+")\n";
- r+="目標虛擬裝置：Xbox Wireless Controller 045e:0b12\n橋接狀態："+get_status();return r;
+ r+="目標虛擬裝置：Microsoft X-Box 360 pad 045e:028e\n橋接狀態："+get_status();return r;
 }
 
 static jstring js(JNIEnv*e,const std::string&s){return e->NewStringUTF(s.c_str());}
 extern "C" JNIEXPORT jstring JNICALL Java_com_example_switchprokeyfix_BridgeNative_diagnostics(JNIEnv*e,jobject){return js(e,diagnostics_text());}
-extern "C" JNIEXPORT jstring JNICALL Java_com_example_switchprokeyfix_BridgeNative_startBridge(JNIEnv*e,jobject){if(g_running.load())return js(e,get_status());if(g_thread.joinable())g_thread.join();g_running=true;set_status("正在啟動完整 Xbox 橋接 watchdog…");g_thread=std::thread(bridge_loop);usleep(300000);return js(e,get_status());}
+extern "C" JNIEXPORT jstring JNICALL Java_com_example_switchprokeyfix_BridgeNative_startBridge(JNIEnv*e,jobject){if(g_running.load())return js(e,get_status());if(g_thread.joinable())g_thread.join();g_running=true;set_status("正在啟動 Xbox 360 相容模式 watchdog…");g_thread=std::thread(bridge_loop);usleep(300000);return js(e,get_status());}
 extern "C" JNIEXPORT jstring JNICALL Java_com_example_switchprokeyfix_BridgeNative_stopBridge(JNIEnv*e,jobject){g_running=false;if(g_thread.joinable())g_thread.join();return js(e,get_status());}
