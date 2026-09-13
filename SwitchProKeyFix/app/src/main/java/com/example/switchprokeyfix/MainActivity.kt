@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity() {
         Shizuku.UserServiceArgs(ComponentName(packageName, PrivilegedService::class.java.name))
             .tag("switch_pro_keyfix_bridge")
             .processNameSuffix("bridge")
-            .version(24)
+            .version(25)
             .debuggable(true)
             .daemon(true)
     }
@@ -92,11 +92,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         val title = TextView(this).apply {
-            text = "Switch Pro Key Fix v0.4.1"
+            text = "Switch Pro Key Fix v0.4.2"
             textSize = 24f
         }
         val description = TextView(this).apply {
-            text = "HAC-013 · 057e:2009\n無 Root · Shizuku + evdev/uinput\n相容模式：Microsoft Xbox 360 Controller (045e:028e)\nA/B/X/Y、十字鍵、雙搖桿、L/R、ZL/ZR、+/−、Home 全部轉成 Xbox 360 標準輸入；截圖鍵另外保留 Android Record 輸出。"
+            text = "HAC-013 · 057e:2009\n無 Root · Shizuku + evdev/uinput\n純 Xbox 360 身分模式：Microsoft X-Box 360 pad (USB 045e:028e)\n只暴露 Xbox 360 標準 capability：A/B/X/Y、十字鍵、雙搖桿、LB/RB、LT/RT、Back/Start、Guide、L3/R3。\nSwitch 截圖鍵在純模式中不輸出，避免讓遊戲看到非 Xbox 360 專屬能力。"
             textSize = 15f
             setPadding(0, 16, 0, 16)
         }
@@ -115,7 +115,7 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { runCommand(3) }
         }
         val start = Button(this).apply {
-            text = "開始 Xbox 360 相容模式"
+            text = "開始純 Xbox 360 模式"
             setOnClickListener { runCommand(1) }
         }
         val stop = Button(this).apply {
@@ -217,7 +217,7 @@ class MainActivity : AppCompatActivity() {
     private fun execute(command: Int) {
         val remote = service ?: return
         setStatus(when (command) {
-            1 -> "正在抓取 Switch Pro 並建立 Xbox 360 相容手把…"
+            1 -> "正在抓取 Switch Pro 並建立純 Xbox 360 虛擬手把…"
             2 -> "正在停止修正…"
             else -> "正在診斷…"
         })
