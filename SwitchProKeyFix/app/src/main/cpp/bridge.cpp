@@ -65,12 +65,12 @@ static int create_virtual_xbox(std::string* err){
  auto fail=[&](const std::string&w){if(err)*err=w+"："+strerror(errno);close(fd);return -1;};
  if(ioctl(fd,UI_SET_EVBIT,EV_KEY)<0||ioctl(fd,UI_SET_EVBIT,EV_ABS)<0||ioctl(fd,UI_SET_EVBIT,EV_SYN)<0)return fail("設定事件能力失敗");
 
- // Classic wired Xbox 360 identity: broad Android game compatibility.
- const int buttons[]={BTN_SOUTH,BTN_EAST,BTN_NORTH,BTN_WEST,BTN_TL,BTN_TR,BTN_SELECT,BTN_START,BTN_MODE,BTN_THUMBL,BTN_THUMBR,KEY_RECORD};
+ // Strict Xbox 360 identity: expose only capabilities that belong to the classic wired pad.
+ const int buttons[]={BTN_SOUTH,BTN_EAST,BTN_NORTH,BTN_WEST,BTN_TL,BTN_TR,BTN_SELECT,BTN_START,BTN_MODE,BTN_THUMBL,BTN_THUMBR};
  for(int c:buttons) if(ioctl(fd,UI_SET_KEYBIT,c)<0)return fail("設定虛擬按鍵失敗");
 
- // Xbox 360-style Linux input layout used by Android:
- // left stick ABS_X/Y, right stick ABS_RX/RY, triggers ABS_Z/RZ, D-pad HAT0X/Y.
+ // Classic xpad/Xbox 360 evdev layout used by Android:
+ // left stick X/Y, right stick RX/RY, triggers Z/RZ, D-pad HAT0X/HAT0Y.
  if(!set_abs_manual(fd,ABS_X,-32768,32767,4096)||!set_abs_manual(fd,ABS_Y,-32768,32767,4096)||
     !set_abs_manual(fd,ABS_RX,-32768,32767,4096)||!set_abs_manual(fd,ABS_RY,-32768,32767,4096)||
     !set_abs_manual(fd,ABS_Z,0,255)||!set_abs_manual(fd,ABS_RZ,0,255)||
@@ -103,7 +103,7 @@ static bool run_session(int src,const std::string& path){
 
  const SourceAxis sx=source_axis(src,ABS_X), sy=source_axis(src,ABS_Y), srx=source_axis(src,ABS_RX), sry=source_axis(src,ABS_RY);
  write_event(out,EV_ABS,ABS_Z,0);write_event(out,EV_ABS,ABS_RZ,0);write_event(out,EV_ABS,ABS_HAT0X,0);write_event(out,EV_ABS,ABS_HAT0Y,0);write_event(out,EV_SYN,SYN_REPORT,0);
- set_status("修正已啟動 ✅\n來源："+path+"\n自動重連 watchdog：開啟\n原手把已 EVIOCGRAB\n輸出：Microsoft X-Box 360 pad (045e:028e)\n完整映射：A/B/X/Y、十字鍵、雙搖桿、L/R、ZL/ZR、+/−、Home；截圖鍵保留 Android Record 額外輸出");
+ set_status("純 Xbox 360 身分模式已啟動 ✅\n來源："+path+"\n自動重連 watchdog：開啟\n原 Switch Pro 已 EVIOCGRAB\n虛擬輸出：Microsoft X-Box 360 pad (USB 045e:028e, version 0114)\n只暴露 Xbox 360 標準能力：A/B/X/Y、十字鍵、雙搖桿、LB/RB、LT/RT、Back/Start、Guide、L3/R3\nSwitch 截圖鍵在純模式中不輸出，避免洩漏非 Xbox 360 capability");
 
  pollfd p{};p.fd=src;p.events=POLLIN;
  bool dpl=false,dpr=false,dpu=false,dpd=false;
@@ -122,12 +122,12 @@ static bool run_session(int src,const std::string& path){
     if(c==BTN_SOUTH)c=BTN_EAST;
     else if(c==BTN_EAST)c=BTN_SOUTH;
 
-    // Switch ZL/ZR are digital. Expose them through Xbox 360 trigger axes.
+    // Switch ZL/ZR are digital. Expose them as classic Xbox 360 trigger axes.
     if(e.code==BTN_TL2) ok=write_event(out,EV_ABS,ABS_Z,e.value?255:0);
     else if(e.code==BTN_TR2) ok=write_event(out,EV_ABS,ABS_RZ,e.value?255:0);
 
-    // Xbox 360 has no native Share button. Keep Switch Capture as an Android Record extra key.
-    else if(e.code==BTN_Z) ok=write_event(out,EV_KEY,KEY_RECORD,e.value);
+    // The wired Xbox 360 pad has no Share/Capture capability. Intentionally swallow Switch Capture.
+    else if(e.code==BTN_Z) ok=true;
 
     // Robust D-pad fallback if the source reports buttons instead of HAT axes.
     else if(e.code==BTN_DPAD_LEFT || e.code==KEY_LEFT){dpl=e.value!=0;ok=write_event(out,EV_ABS,ABS_HAT0X,(dpr?1:0)-(dpl?1:0));}
@@ -135,7 +135,7 @@ static bool run_session(int src,const std::string& path){
     else if(e.code==BTN_DPAD_UP   || e.code==KEY_UP){dpu=e.value!=0;ok=write_event(out,EV_ABS,ABS_HAT0Y,(dpd?1:0)-(dpu?1:0));}
     else if(e.code==BTN_DPAD_DOWN || e.code==KEY_DOWN){dpd=e.value!=0;ok=write_event(out,EV_ABS,ABS_HAT0Y,(dpd?1:0)-(dpu?1:0));}
 
-    // L/R, +/- (Select/Start), Home (Mode), stick clicks and face buttons.
+    // L/R, +/- (Back/Start), Home (Guide/Mode), stick clicks and face buttons.
     else if(supported_xbox_button(c)) ok=write_event(out,EV_KEY,(uint16_t)c,e.value);
    }else if(e.type==EV_ABS){
     switch(e.code){
@@ -172,12 +172,12 @@ static void bridge_loop(){
 static std::string diagnostics_text(){
  std::string r="native uid："+std::to_string(getuid())+"\n";
  std::string p;int s=open_switch_pro(&p);
- if(s>=0){char n[256]{};ioctl(s,EVIOCGNAME(sizeof(n)),n);r+="Switch Pro：已找到\n來源："+p+"\n名稱："+std::string(n[0]?n:"Nintendo Switch Pro Controller")+"\n";close(s);}else r+="Switch Pro：找不到 057e:2009 gamepad event\n";
+ if(s>=0){char n[256]{};ioctl(s,EVIOCGNAME(sizeof(n)),n);r+="實體來源：已找到 Switch Pro 057e:2009\n來源："+p+"\n名稱："+std::string(n[0]?n:"Nintendo Switch Pro Controller")+"\n";close(s);}else r+="實體來源：找不到 057e:2009 gamepad event\n";
  int u=open("/dev/uinput",O_WRONLY|O_NONBLOCK);if(u>=0){r+="/dev/uinput：可開啟 ✅\n";close(u);}else r+=std::string("/dev/uinput：無法開啟 ❌ (")+strerror(errno)+")\n";
- r+="目標虛擬裝置：Microsoft X-Box 360 pad 045e:028e\n橋接狀態："+get_status();return r;
+ r+="虛擬目標：Microsoft X-Box 360 pad\nUSB VID:PID：045e:028e\nBus：USB\n純身分能力：不加入 Share/Record/Switch 專屬按鍵\n注意：EVIOCGRAB 會攔截實體事件，但無 Root 無法保證 Android 的裝置清單完全隱藏實體 Switch 名稱。\n橋接狀態："+get_status();return r;
 }
 
 static jstring js(JNIEnv*e,const std::string&s){return e->NewStringUTF(s.c_str());}
 extern "C" JNIEXPORT jstring JNICALL Java_com_example_switchprokeyfix_BridgeNative_diagnostics(JNIEnv*e,jobject){return js(e,diagnostics_text());}
-extern "C" JNIEXPORT jstring JNICALL Java_com_example_switchprokeyfix_BridgeNative_startBridge(JNIEnv*e,jobject){if(g_running.load())return js(e,get_status());if(g_thread.joinable())g_thread.join();g_running=true;set_status("正在啟動 Xbox 360 相容模式 watchdog…");g_thread=std::thread(bridge_loop);usleep(300000);return js(e,get_status());}
+extern "C" JNIEXPORT jstring JNICALL Java_com_example_switchprokeyfix_BridgeNative_startBridge(JNIEnv*e,jobject){if(g_running.load())return js(e,get_status());if(g_thread.joinable())g_thread.join();g_running=true;set_status("正在啟動純 Xbox 360 身分模式 watchdog…");g_thread=std::thread(bridge_loop);usleep(300000);return js(e,get_status());}
 extern "C" JNIEXPORT jstring JNICALL Java_com_example_switchprokeyfix_BridgeNative_stopBridge(JNIEnv*e,jobject){g_running=false;if(g_thread.joinable())g_thread.join();return js(e,get_status());}
