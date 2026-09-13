@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.switchprokeyfix"
         minSdk = 30
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.2.1"
+        versionCode = 8
+        versionName = "0.3.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -26,9 +26,7 @@ android {
         }
     }
 
-    buildFeatures {
-        aidl = true
-    }
+    buildFeatures { aidl = true }
 
     externalNativeBuild {
         cmake {
@@ -41,10 +39,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
