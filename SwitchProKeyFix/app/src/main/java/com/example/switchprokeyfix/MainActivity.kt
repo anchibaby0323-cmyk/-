@@ -262,10 +262,10 @@ echo "base=${'$'}BASE"
 
 VERSION=""
 if [ -r /proc/bus/input/devices ]; then
-  VERSION=$(awk 'BEGIN{IGNORECASE=1} /Vendor=057e/ && /Product=2009/ {for(i=1;i<=NF;i++){if($i ~ /^Version=/){sub(/^Version=/,"",$i); print $i; exit}}}' /proc/bus/input/devices 2>/dev/null || true)
+  VERSION=$(awk 'BEGIN{IGNORECASE=1} /Vendor=057e/ && /Product=2009/ {for(i=1;i<=NF;i++){if(${'$'}i ~ /^Version=/){sub(/^Version=/,"",${'$'}i); print ${'$'}i; exit}}}' /proc/bus/input/devices 2>/dev/null || true)
 fi
 if [ -z "${'$'}VERSION" ]; then
-  VERSION=$(dumpsys input 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /Vendor: 0x057e/{v=1} v&&/Product: 0x2009/{p=1} p&&/Version:/{gsub("0x","",$2); print $2; exit}' || true)
+  VERSION=$(dumpsys input 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /Vendor: 0x057e/{v=1} v&&/Product: 0x2009/{p=1} p&&/Version:/{gsub("0x","",${'$'}2); print ${'$'}2; exit}' || true)
 fi
 if [ -z "${'$'}VERSION" ]; then
   echo "ERROR 22：Shizuku 已執行，但找不到 057e:2009 的控制器版本。"
