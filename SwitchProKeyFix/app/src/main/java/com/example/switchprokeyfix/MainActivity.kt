@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
         Shizuku.UserServiceArgs(ComponentName(packageName, PrivilegedService::class.java.name))
             .tag("switch_pro_keyfix_bridge")
             .processNameSuffix("bridge")
-            .version(22)
+            .version(23)
             .debuggable(true)
             .daemon(true)
     }
@@ -94,11 +94,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         val title = TextView(this).apply {
-            text = "Switch Pro Key Fix v0.3.1"
+            text = "Switch Pro Key Fix v0.4.0"
             textSize = 24f
         }
         val description = TextView(this).apply {
-            text = "HAC-013 · 057e:2009\n無 Root · Shizuku + evdev/uinput 虛擬 Xbox 360\n支援 watchdog 自動重連；A/B/X/Y 依鍵帽字母輸出。"
+            text = "HAC-013 · 057e:2009\n無 Root · Shizuku + evdev/uinput\n完整模擬 Xbox Wireless Controller (045e:0b12)\nA/B/X/Y、十字鍵、雙搖桿、L/R、ZL/ZR、+/−、Home、截圖/Share 全部轉成 Xbox 參數。"
             textSize = 15f
             setPadding(0, 16, 0, 16)
         }
@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { runCommand(3) }
         }
         val start = Button(this).apply {
-            text = "開始全域修正"
+            text = "開始完整 Xbox 修正"
             setOnClickListener { runCommand(1) }
         }
         val stop = Button(this).apply {
@@ -134,7 +134,6 @@ class MainActivity : AppCompatActivity() {
         root.addView(stop)
         setContentView(ScrollView(this).apply { addView(root) })
 
-        // UI 必須先初始化，再註冊 Sticky listener；否則 Shizuku 已運行時 callback 會立即觸發。
         Shizuku.addBinderReceivedListenerSticky(binderReceivedListener)
         Shizuku.addBinderDeadListener(binderDeadListener)
         Shizuku.addRequestPermissionResultListener(permissionResultListener)
@@ -220,7 +219,7 @@ class MainActivity : AppCompatActivity() {
     private fun execute(command: Int) {
         val remote = service ?: return
         setStatus(when (command) {
-            1 -> "正在抓取 Switch Pro 並建立虛擬手把…"
+            1 -> "正在抓取 Switch Pro 並建立完整 Xbox Wireless Controller…"
             2 -> "正在停止修正…"
             else -> "正在診斷…"
         })
