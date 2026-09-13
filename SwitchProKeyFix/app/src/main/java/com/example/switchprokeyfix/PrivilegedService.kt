@@ -1,31 +1,49 @@
 package com.example.switchprokeyfix
 
-class PrivilegedService : IPrivilegedService.Stub() {
-    override fun runScript(script: String): String {
+import android.content.Context
+
+class PrivilegedService : IPrivilegedService.Stub {
+
+    @Suppress("unused")
+    constructor() : super()
+
+    @Suppress("unused")
+    constructor(context: Context?) : super()
+
+    override fun getDiagnostics(): String {
         return try {
-            val process = ProcessBuilder("/system/bin/sh", "-c", script)
-                .redirectErrorStream(true)
-                .start()
-
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            val code = process.waitFor()
-
             buildString {
                 appendLine("UserService：已連線")
                 appendLine("shell uid：${android.os.Process.myUid()}")
-                appendLine("結果代碼：$code")
-                if (output.isNotBlank()) {
-                    append(output.trimEnd())
-                } else {
-                    append("指令沒有輸出內容。")
-                }
+                append(BridgeNative.diagnostics())
             }
         } catch (t: Throwable) {
-            buildString {
-                appendLine("UserService：執行失敗")
-                appendLine("例外：${t.javaClass.name}")
-                append("訊息：${t.message ?: "(無)"}")
-            }
+            "診斷失敗：${t.javaClass.simpleName}: ${t.message ?: "(無訊息)"}"
         }
+    }
+
+    override fun startBridge(): String {
+        return try {
+            BridgeNative.startBridge()
+        } catch (t: Throwable) {
+            "啟動失敗：${t.javaClass.simpleName}: ${t.message ?: "(無訊息)"}"
+        }
+    }
+
+    override fun stopBridge(): String {
+        return try {
+            BridgeNative.stopBridge()
+        } catch (t: Throwable) {
+            "停止失敗：${t.javaClass.simpleName}: ${t.message ?: "(無訊息)"}"
+        }
+    }
+
+    @Suppress("unused")
+    fun destroy() {
+        try {
+            BridgeNative.stopBridge()
+        } catch (_: Throwable) {
+        }
+        System.exit(0)
     }
 }

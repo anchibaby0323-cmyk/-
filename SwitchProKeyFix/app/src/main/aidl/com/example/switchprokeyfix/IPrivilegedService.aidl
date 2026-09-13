@@ -1,5 +1,7 @@
 package com.example.switchprokeyfix;
 
 interface IPrivilegedService {
-    String runScript(String script);
+    String getDiagnostics();
+    String startBridge();
+    String stopBridge();
 }
