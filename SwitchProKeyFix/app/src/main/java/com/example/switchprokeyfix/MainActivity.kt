@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
         )
             .tag("switch_pro_keyfix")
             .processNameSuffix("privileged")
-            .version(2)
+            .version(3)
             .debuggable(true)
             .daemon(false)
     }
@@ -114,8 +114,29 @@ class MainActivity : AppCompatActivity() {
         val devices = InputDevice.getDeviceIds()
             .toList()
             .mapNotNull { id -> InputDevice.getDevice(id) }
-        val pro = devices.firstOrNull { device ->
+
+        val gamepads = devices.filter { device ->
+            val sources = device.sources
+            (sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+                (sources and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+        }
+
+        val exact = devices.firstOrNull { device ->
             device.vendorId == 0x057e && device.productId == 0x2009
+        }
+
+        val named = gamepads.firstOrNull { device ->
+            val n = device.name.lowercase()
+            n.contains("pro controller") ||
+                n.contains("nintendo") ||
+                n.contains("switch")
+        }
+
+        val pro = exact ?: named
+        val detectionMethod = when {
+            exact != null -> "VID/PID"
+            named != null -> "裝置名稱 / GAMEPAD"
+            else -> null
         }
 
         val shizukuState = try {
@@ -131,11 +152,25 @@ class MainActivity : AppCompatActivity() {
         status.text = buildString {
             appendLine("Shizuku：$shizukuState")
             if (pro != null) {
-                appendLine("Switch Pro：已偵測")
+                appendLine("Switch Pro：已偵測（$detectionMethod）")
+                appendLine("名稱：${pro.name}")
                 appendLine("VID:PID = %04x:%04x".format(pro.vendorId, pro.productId))
                 appendLine("Descriptor：${pro.descriptor}")
+                if (pro.vendorId == 0 || pro.productId == 0) {
+                    appendLine("※ HyperOS 沒有向一般 App 提供完整 VID/PID，套用時會改由 Shizuku 讀核心輸入資訊。")
+                }
             } else {
-                appendLine("Switch Pro：未偵測")
+                appendLine("Switch Pro：一般 Android API 尚未辨識")
+                if (gamepads.isNotEmpty()) {
+                    appendLine()
+                    appendLine("目前 GAMEPAD / JOYSTICK 候選：")
+                    gamepads.forEach { d ->
+                        appendLine("• ${d.name}  %04x:%04x".format(d.vendorId, d.productId))
+                    }
+                } else {
+                    appendLine("目前沒有 GAMEPAD / JOYSTICK 類型的 InputDevice。")
+                }
+                appendLine("仍可按『套用』，Shizuku 會直接從 Linux 輸入裝置再次尋找 057e:2009。")
             }
             appendLine()
             appendLine("套用或恢復後，請關閉並重新連接手把。")
@@ -209,15 +244,33 @@ for p in /odm/usr/keylayout /vendor/usr/keylayout /system/usr/keylayout /product
   if [ -f "${'$'}p/Vendor_057e_Product_2009.kl" ]; then BASE="${'$'}p/Vendor_057e_Product_2009.kl"; break; fi
 done
 if [ -z "${'$'}BASE" ]; then echo "找不到 Switch Pro 原始 .kl"; exit 20; fi
+
+VERSION=""
+if [ -r /proc/bus/input/devices ]; then
+  VERSION=$(awk 'BEGIN{IGNORECASE=1} /Vendor=057e/ && /Product=2009/ {for(i=1;i<=NF;i++){if($i ~ /^Version=/){sub(/^Version=/,"",$i); print $i; exit}}}' /proc/bus/input/devices 2>/dev/null || true)
+fi
+if [ -z "${'$'}VERSION" ]; then
+  VERSION=$(dumpsys input 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /Vendor: 0x057e/{v=1} v&&/Product: 0x2009/{p=1} p&&/Version:/{gsub("0x","",$2); print $2; exit}' || true)
+fi
+if [ -z "${'$'}VERSION" ]; then
+  echo "已連上 Shizuku，但找不到 057e:2009 的控制器版本。"
+  echo "--- /proc/bus/input/devices 候選 ---"
+  grep -i -B1 -A4 -E '057e|2009|pro controller|nintendo|switch' /proc/bus/input/devices 2>/dev/null || true
+  echo "--- dumpsys input 候選 ---"
+  dumpsys input 2>/dev/null | grep -i -B2 -A6 -E '057e|2009|pro controller|nintendo|switch' | head -n 120 || true
+  exit 22
+fi
+VERSION=$(echo "${'$'}VERSION" | tr '[:lower:]' '[:upper:]' | sed 's/^0X//')
+VERSION=$(printf "%04s" "${'$'}VERSION" | tr ' ' '0')
+echo "偵測到 Switch Pro：057e:2009 Version=${'$'}VERSION"
+
 mkdir -p "${'$'}DST" 2>/dev/null || true
 if [ ! -d "${'$'}DST" ] || [ ! -w "${'$'}DST" ]; then
   echo "Shizuku shell 無法寫入 ${'$'}DST"
   ls -ld "${'$'}DST" 2>&1 || true
   exit 21
 fi
-VERSION=$(dumpsys input 2>/dev/null | awk '/Vendor: 0x057e/{f=1} f&&/Product: 0x2009/{p=1} p&&/Version:/{print ${'$'}2; exit}' | sed 's/0x//')
-if [ -z "${'$'}VERSION" ]; then VERSION=0000; fi
-VERSION=$(printf "%04s" "${'$'}VERSION" | tr ' ' '0')
+
 OUT="${'$'}DST/Vendor_057e_Product_2009_Version_${'$'}VERSION.kl"
 TMP="${'$'}OUT.tmp"
 cp "${'$'}BASE" "${'$'}TMP"
