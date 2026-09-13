@@ -27,9 +27,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             if (!::status.isInitialized) return@runOnUiThread
             refreshLocalState()
-            if (hasShizukuPermission() && pendingCommand != 0) {
-                bindIfNeeded(pendingCommand)
-            }
+            if (hasShizukuPermission() && pendingCommand != 0) bindIfNeeded(pendingCommand)
         }
     }
 
@@ -56,7 +54,7 @@ class MainActivity : AppCompatActivity() {
         Shizuku.UserServiceArgs(ComponentName(packageName, PrivilegedService::class.java.name))
             .tag("switch_pro_keyfix_bridge")
             .processNameSuffix("bridge")
-            .version(23)
+            .version(24)
             .debuggable(true)
             .daemon(true)
     }
@@ -94,11 +92,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         val title = TextView(this).apply {
-            text = "Switch Pro Key Fix v0.4.0"
+            text = "Switch Pro Key Fix v0.4.1"
             textSize = 24f
         }
         val description = TextView(this).apply {
-            text = "HAC-013 · 057e:2009\n無 Root · Shizuku + evdev/uinput\n完整模擬 Xbox Wireless Controller (045e:0b12)\nA/B/X/Y、十字鍵、雙搖桿、L/R、ZL/ZR、+/−、Home、截圖/Share 全部轉成 Xbox 參數。"
+            text = "HAC-013 · 057e:2009\n無 Root · Shizuku + evdev/uinput\n相容模式：Microsoft Xbox 360 Controller (045e:028e)\nA/B/X/Y、十字鍵、雙搖桿、L/R、ZL/ZR、+/−、Home 全部轉成 Xbox 360 標準輸入；截圖鍵另外保留 Android Record 輸出。"
             textSize = 15f
             setPadding(0, 16, 0, 16)
         }
@@ -117,7 +115,7 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { runCommand(3) }
         }
         val start = Button(this).apply {
-            text = "開始完整 Xbox 修正"
+            text = "開始 Xbox 360 相容模式"
             setOnClickListener { runCommand(1) }
         }
         val stop = Button(this).apply {
@@ -219,7 +217,7 @@ class MainActivity : AppCompatActivity() {
     private fun execute(command: Int) {
         val remote = service ?: return
         setStatus(when (command) {
-            1 -> "正在抓取 Switch Pro 並建立完整 Xbox Wireless Controller…"
+            1 -> "正在抓取 Switch Pro 並建立 Xbox 360 相容手把…"
             2 -> "正在停止修正…"
             else -> "正在診斷…"
         })
