@@ -31,3 +31,5 @@ jobs:
         with:
           name: SwitchProKeyFix-debug-apk
           path: SwitchProKeyFix/app/build/outputs/apk/debug/app-debug.apk
+
+# Trigger marker: SwitchProKeyFix v0.3.0 watchdog build
