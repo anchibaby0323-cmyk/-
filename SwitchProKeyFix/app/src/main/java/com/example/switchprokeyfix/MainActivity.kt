@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
         )
             .tag("switch_pro_keyfix")
             .processNameSuffix("privileged")
-            .version(4)
+            .version(5)
             .debuggable(true)
             .daemon(false)
     }
@@ -45,23 +45,17 @@ class MainActivity : AppCompatActivity() {
 
         override fun onServiceDisconnected(name: ComponentName) {
             privilegedService = null
-            runOnUiThread {
-                status.text = "UserService 已斷線。請重新按一次操作按鈕。"
-            }
+            runOnUiThread { status.text = "UserService 已斷線。請重新按一次操作按鈕。" }
         }
 
         override fun onBindingDied(name: ComponentName) {
             privilegedService = null
-            runOnUiThread {
-                status.text = "UserService 啟動後死亡。請重啟 Shizuku 後再試。"
-            }
+            runOnUiThread { status.text = "UserService 啟動後死亡。請重啟 Shizuku 後再試。" }
         }
 
         override fun onNullBinding(name: ComponentName) {
             privilegedService = null
-            runOnUiThread {
-                status.text = "UserService 回傳空 Binder，無法執行。"
-            }
+            runOnUiThread { status.text = "UserService 回傳空 Binder，無法執行。" }
         }
     }
 
@@ -73,7 +67,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(40, 40, 40, 40)
         }
         val title = TextView(this).apply {
-            text = "Switch Pro 按鍵修正 v0.1.3"
+            text = "Switch Pro 按鍵修正 v0.1.4"
             textSize = 24f
         }
         status = TextView(this).apply {
@@ -131,41 +125,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshStatus() {
-        val devices = InputDevice.getDeviceIds()
-            .toList()
-            .mapNotNull { id -> InputDevice.getDevice(id) }
-
+        val devices = InputDevice.getDeviceIds().toList().mapNotNull { id -> InputDevice.getDevice(id) }
         val gamepads = devices.filter { device ->
             val sources = device.sources
             (sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
                 (sources and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
         }
-
-        val exact = devices.firstOrNull { device ->
-            device.vendorId == 0x057e && device.productId == 0x2009
-        }
-
+        val exact = devices.firstOrNull { it.vendorId == 0x057e && it.productId == 0x2009 }
         val named = gamepads.firstOrNull { device ->
             val n = device.name.lowercase()
             n.contains("pro controller") || n.contains("nintendo") || n.contains("switch")
         }
-
         val pro = exact ?: named
         val detectionMethod = when {
             exact != null -> "VID/PID"
             named != null -> "裝置名稱 / GAMEPAD"
             else -> null
         }
-
         val shizukuState = try {
             when {
                 !Shizuku.pingBinder() -> "未連線"
                 Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED -> "已授權"
                 else -> "未授權"
             }
-        } catch (_: Throwable) {
-            "不可用"
-        }
+        } catch (_: Throwable) { "不可用" }
 
         status.text = buildString {
             appendLine("Shizuku：$shizukuState")
@@ -174,18 +157,9 @@ class MainActivity : AppCompatActivity() {
                 appendLine("Switch Pro：已偵測（$detectionMethod）")
                 appendLine("名稱：${pro.name}")
                 appendLine("VID:PID = %04x:%04x".format(pro.vendorId, pro.productId))
-                appendLine("Descriptor：${pro.descriptor}")
             } else {
-                appendLine("Switch Pro：一般 Android API 尚未辨識")
-                if (gamepads.isNotEmpty()) {
-                    appendLine("GAMEPAD / JOYSTICK 候選：")
-                    gamepads.forEach { d ->
-                        appendLine("• ${d.name}  %04x:%04x".format(d.vendorId, d.productId))
-                    }
-                } else {
-                    appendLine("目前沒有 GAMEPAD / JOYSTICK 類型的 InputDevice。")
-                }
-                appendLine("仍可按『套用』，Shizuku 會從 Linux 輸入資訊再次尋找。")
+                appendLine("Switch Pro：Android API 尚未辨識")
+                appendLine("仍可按『套用』，Shizuku 會直接從 dumpsys input 尋找。")
             }
         }
     }
@@ -216,7 +190,6 @@ class MainActivity : AppCompatActivity() {
             }
             return
         }
-
         executeRemote(apply)
     }
 
@@ -226,14 +199,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val script = if (apply) buildApplyScript() else buildRestoreScript()
-
         status.text = "UserService 已連線，正在執行指令…"
         Thread {
             try {
                 val result = remote.runScript(script)
-                runOnUiThread {
-                    status.text = result.ifBlank { "UserService 已完成，但沒有回傳文字。" }
-                }
+                runOnUiThread { status.text = result.ifBlank { "UserService 已完成，但沒有回傳文字。" } }
             } catch (t: Throwable) {
                 privilegedService = null
                 runOnUiThread {
@@ -245,73 +215,93 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildApplyScript(): String = """
 set -u
-printf '診斷開始\n'
-printf 'uid='; id -u 2>&1 || true
-printf 'whoami='; id 2>&1 || true
-
 DST=/data/system/devices/keylayout
 BASE=""
 for p in /product/usr/keylayout /system_ext/usr/keylayout /odm/usr/keylayout /vendor/usr/keylayout /apex/com.android.input.config/etc/usr/keylayout /system/usr/keylayout; do
   if [ -f "${'$'}p/Vendor_057e_Product_2009.kl" ]; then BASE="${'$'}p/Vendor_057e_Product_2009.kl"; break; fi
 done
 if [ -z "${'$'}BASE" ]; then
-  echo "ERROR 20：找不到 Switch Pro 原始 .kl"
+  echo "ERROR 20：找不到原始 Switch Pro .kl"
   exit 20
 fi
-echo "base=${'$'}BASE"
 
-VERSION=""
-if [ -r /proc/bus/input/devices ]; then
-  VERSION=$(awk 'BEGIN{IGNORECASE=1} /Vendor=057e/ && /Product=2009/ {for(i=1;i<=NF;i++){if(${'$'}i ~ /^Version=/){sub(/^Version=/,"",${'$'}i); print ${'$'}i; exit}}}' /proc/bus/input/devices 2>/dev/null || true)
-fi
+IDENTIFIER=$(dumpsys input 2>/dev/null | grep -i -m1 'vendor=0x057e, product=0x2009, version=0x' || true)
+VERSION=$(printf '%s\n' "${'$'}IDENTIFIER" | sed -n 's/.*version=0x\([0-9A-Fa-f][0-9A-Fa-f]*\).*/\1/p' | head -n 1)
 if [ -z "${'$'}VERSION" ]; then
-  VERSION=$(dumpsys input 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /Vendor: 0x057e/{v=1} v&&/Product: 0x2009/{p=1} p&&/Version:/{gsub("0x","",${'$'}2); print ${'$'}2; exit}' || true)
-fi
-if [ -z "${'$'}VERSION" ]; then
-  echo "ERROR 22：Shizuku 已執行，但找不到 057e:2009 的控制器版本。"
-  echo "--- input candidates ---"
-  grep -i -B1 -A5 -E '057e|2009|pro controller|nintendo|switch' /proc/bus/input/devices 2>/dev/null || true
-  echo "--- dumpsys candidates ---"
-  dumpsys input 2>/dev/null | grep -i -B2 -A6 -E '057e|2009|pro controller|nintendo|switch' | head -n 120 || true
+  echo "ERROR 22：已找到 Shizuku，但無法解析 Switch Pro version。"
+  echo "VID/PID：057e:2009"
   exit 22
 fi
-VERSION=$(echo "${'$'}VERSION" | tr '[:upper:]' '[:lower:]' | sed 's/^0x//')
+VERSION=$(printf '%s' "${'$'}VERSION" | tr '[:upper:]' '[:lower:]')
 VERSION=$(printf "%04s" "${'$'}VERSION" | tr ' ' '0')
-echo "controller=057e:2009 version=${'$'}VERSION"
+OUT="${'$'}DST/Vendor_057e_Product_2009_Version_${'$'}VERSION.kl"
+TMP="${'$'}OUT.tmp"
+
+echo "Shizuku：已連線"
+echo "shell uid=$(id -u 2>/dev/null || echo '?')"
+echo "手把：Nintendo Switch Pro Controller"
+echo "VID:PID：057e:2009"
+echo "Version：${'$'}VERSION"
+echo "來源 KL：${'$'}BASE"
+echo "目標 KL：${'$'}OUT"
 
 mkdir -p "${'$'}DST" 2>/dev/null || true
 if [ ! -d "${'$'}DST" ] || [ ! -w "${'$'}DST" ]; then
+  echo "寫入狀態：失敗"
   echo "ERROR 21：Shizuku shell 無法寫入 ${'$'}DST"
   ls -ld "${'$'}DST" 2>&1 || true
   exit 21
 fi
 
-OUT="${'$'}DST/Vendor_057e_Product_2009_Version_${'$'}VERSION.kl"
-TMP="${'$'}OUT.tmp"
-cp "${'$'}BASE" "${'$'}TMP" || exit 23
+for p in /product/usr/keylayout /system_ext/usr/keylayout /odm/usr/keylayout /vendor/usr/keylayout /apex/com.android.input.config/etc/usr/keylayout /system/usr/keylayout; do
+  if [ -f "${'$'}p/Vendor_057e_Product_2009_Version_${'$'}VERSION.kl" ]; then
+    echo "寫入狀態：停止"
+    echo "ERROR 26：系統已存在更高優先級的 version-specific KL：${'$'}p/Vendor_057e_Product_2009_Version_${'$'}VERSION.kl"
+    exit 26
+  fi
+done
+
+cp "${'$'}BASE" "${'$'}TMP" || { echo "寫入狀態：複製失敗"; exit 23; }
 sed -i \
   -e 's/BUTTON_A/__SWITCHPRO_TMP_A__/g' \
   -e 's/BUTTON_B/BUTTON_A/g' \
   -e 's/__SWITCHPRO_TMP_A__/BUTTON_B/g' \
   -e 's/BUTTON_X/__SWITCHPRO_TMP_X__/g' \
   -e 's/BUTTON_Y/BUTTON_X/g' \
-  -e 's/__SWITCHPRO_TMP_X__/BUTTON_Y/g' "${'$'}TMP" || exit 24
-mv "${'$'}TMP" "${'$'}OUT" || exit 25
+  -e 's/__SWITCHPRO_TMP_X__/BUTTON_Y/g' "${'$'}TMP" || { echo "寫入狀態：修改失敗"; exit 24; }
+mv "${'$'}TMP" "${'$'}OUT" || { echo "寫入狀態：移動失敗"; exit 25; }
 chmod 0644 "${'$'}OUT" || true
-echo "SUCCESS：已建立 ${'$'}OUT"
+
+echo "寫入狀態：成功"
+echo "請中斷並重新連接 Switch Pro 手把後測試。"
+echo "按鍵配置："
 grep -E 'BUTTON_[ABXY]' "${'$'}OUT" || true
 """.trimIndent()
 
     private fun buildRestoreScript(): String = """
 set -u
 DST=/data/system/devices/keylayout
-echo "restore uid=$(id -u 2>/dev/null || echo '?')"
-if [ ! -d "${'$'}DST" ]; then
-  echo "沒有自訂配置需要移除。"
-  exit 0
+IDENTIFIER=$(dumpsys input 2>/dev/null | grep -i -m1 'vendor=0x057e, product=0x2009, version=0x' || true)
+VERSION=$(printf '%s\n' "${'$'}IDENTIFIER" | sed -n 's/.*version=0x\([0-9A-Fa-f][0-9A-Fa-f]*\).*/\1/p' | head -n 1)
+if [ -z "${'$'}VERSION" ]; then
+  echo "ERROR 22：無法解析目前 Switch Pro version，因此不會刪除任何檔案。"
+  exit 22
 fi
-rm -f "${'$'}DST"/Vendor_057e_Product_2009_Version_*.kl
-rm -f "${'$'}DST"/Vendor_057e_Product_2009_Version_*.kl.tmp
-echo "SUCCESS：已移除 Switch Pro 自訂覆蓋配置。"
+VERSION=$(printf '%s' "${'$'}VERSION" | tr '[:upper:]' '[:lower:]')
+VERSION=$(printf "%04s" "${'$'}VERSION" | tr ' ' '0')
+OUT="${'$'}DST/Vendor_057e_Product_2009_Version_${'$'}VERSION.kl"
+TMP="${'$'}OUT.tmp"
+
+echo "手把：Nintendo Switch Pro Controller"
+echo "Version：${'$'}VERSION"
+echo "目標 KL：${'$'}OUT"
+rm -f "${'$'}TMP"
+if [ -f "${'$'}OUT" ]; then
+  rm -f "${'$'}OUT" || { echo "恢復狀態：刪除失敗"; exit 27; }
+  echo "恢復狀態：成功"
+  echo "請中斷並重新連接手把。"
+else
+  echo "恢復狀態：沒有找到此版本的自訂配置。"
+fi
 """.trimIndent()
 }
