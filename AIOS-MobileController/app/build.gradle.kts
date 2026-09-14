@@ -8,12 +8,13 @@ android {
         applicationId = "com.capybara.aios"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3-github-alpha"
+        versionCode = 4
+        versionName = "0.4-github-alpha"
     }
 }
 
 dependencies {
+    implementation("androidx.annotation:annotation:1.8.2")
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
 }
