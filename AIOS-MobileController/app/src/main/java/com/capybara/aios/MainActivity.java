@@ -3,6 +3,7 @@ package com.capybara.aios;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -13,17 +14,48 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
     private TextView status;
     private TextView log;
     private EditText input;
+    private final Map<String, String> appMap = new HashMap<>();
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        initApps();
         buildUi();
         refresh();
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 33);
+    }
+
+    private void initApps() {
+        appMap.put("line", "jp.naver.line.android");
+        appMap.put("賴", "jp.naver.line.android");
+        appMap.put("赖", "jp.naver.line.android");
+        appMap.put("gmail", "com.google.android.gm");
+        appMap.put("信箱", "com.google.android.gm");
+        appMap.put("郵件", "com.google.android.gm");
+        appMap.put("邮件", "com.google.android.gm");
+        appMap.put("gemini", "com.google.android.apps.bard");
+        appMap.put("bard", "com.google.android.apps.bard");
+        appMap.put("設定", "com.android.settings");
+        appMap.put("设置", "com.android.settings");
+        appMap.put("原神", "com.miHoYo.Yuanshen");
+        appMap.put("genshin", "com.miHoYo.GenshinImpact");
+        appMap.put("chrome", "com.android.chrome");
+        appMap.put("瀏覽器", "com.android.chrome");
+        appMap.put("浏览器", "com.android.chrome");
+        appMap.put("youtube", "com.google.android.youtube");
+        appMap.put("yt", "com.google.android.youtube");
+        appMap.put("地圖", "com.google.android.apps.maps");
+        appMap.put("地图", "com.google.android.apps.maps");
+        appMap.put("maps", "com.google.android.apps.maps");
     }
 
     private void buildUi() {
@@ -34,7 +66,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("AIOS 手機控制中心 v0.3 GitHub Alpha");
+        title.setText("AIOS 手機控制中心 v0.5 語意版");
         title.setTextSize(22);
         root.addView(title);
 
@@ -45,17 +77,17 @@ public class MainActivity extends Activity {
 
         input = new EditText(this);
         input.setMinLines(4);
-        input.setHint("輸入指令：\n開啟 LINE\n返回\n首頁\n通知欄\n點擊 500 1200\n輸入 你好\n點擊文字 傳送\nShell wm size\n多指令用 ； 分隔");
+        input.setHint("直接講人話：\n打開line\n幫我開賴\n回到桌面\n往下滑通知欄\n點一下傳送\n輸入你好\n點擊500,1200\n多指令用 ； 分隔");
         root.addView(input);
 
         row(root, btn("執行", v -> runCmd(input.getText().toString())), btn("清空", v -> log.setText("日誌：\n")));
         row(root, btn("無障礙設定", v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))), btn("Shizuku 授權", v -> { ShizukuTools.request(); refresh(); }));
-        row(root, btn("開 LINE", v -> runCmd("開啟 LINE")), btn("開原神", v -> runCmd("開啟 原神")), btn("返回", v -> runCmd("返回")));
-        row(root, btn("首頁", v -> runCmd("首頁")), btn("通知欄", v -> runCmd("通知欄")), btn("讀畫面", v -> runCmd("讀取畫面")));
+        row(root, btn("開 LINE", v -> runCmd("打開line")), btn("開原神", v -> runCmd("幫我打開原神")), btn("返回", v -> runCmd("回上一頁")));
+        row(root, btn("首頁", v -> runCmd("回到桌面")), btn("通知欄", v -> runCmd("打開通知欄")), btn("讀畫面", v -> runCmd("看一下畫面")));
         row(root, btn("亮度", v -> runCmd("Shell settings get system screen_brightness")), btn("解析度", v -> runCmd("Shell wm size")));
 
         TextView help = new TextView(this);
-        help.setText("\n支援指令：\n• 開啟 LINE / 原神 / Gmail / Gemini / 設定\n• 返回 / 首頁 / 最近任務 / 通知欄 / 快捷設定\n• 點擊 x y / 長按 x y / 滑動 x1 y1 x2 y2 毫秒\n• 點擊文字 xxx / 輸入 xxx / 讀取畫面\n• Shell xxx，需要 Shizuku 授權\n\n安全限制：不會繞過鎖屏、密碼、支付確認、遊戲防作弊或系統安全限制。");
+        help.setText("\n這版不需要固定空格或大小寫。\n可懂：打開line、開 LINE、幫我開賴、打开Gmail、回到桌面、回上一頁、打開通知欄、點一下傳送、輸入你好、點擊500 1200。\n\n目前不是直接連 GPT/Gemini 模型資料庫；那需要官方 API 或官方支援。這版是 App 內建模糊語意解析，先讓日常指令不要死板。\n\n安全限制：不會繞過鎖屏、密碼、支付確認、遊戲防作弊或系統安全限制。");
         root.addView(help);
 
         log = new TextView(this);
@@ -69,10 +101,27 @@ public class MainActivity extends Activity {
     private void refresh() { status.setText("Shizuku：" + (ShizukuTools.available() ? "已執行" : "未執行") + "｜授權：" + (ShizukuTools.granted() ? "已授權" : "未授權") + "\n無障礙：" + (AiosAccessibilityService.get()!=null ? "已啟動" : "未啟動")); }
     private void append(String s) { log.append("\n> " + s + "\n"); }
 
+    private String norm(String s) {
+        if (s == null) return "";
+        return s.toLowerCase(Locale.ROOT)
+                .replace(" ", "")
+                .replace("　", "")
+                .replace("，", ",")
+                .replace("。", "")
+                .replace("請", "")
+                .replace("帮", "幫")
+                .replace("打开", "打開")
+                .replace("啟動", "打開")
+                .replace("启动", "打開")
+                .replace("开启", "開啟")
+                .replace("開啟", "打開")
+                .replace("開", "打開");
+    }
+
     private void runCmd(String raw) {
         refresh();
         if (raw == null || raw.trim().isEmpty()) return;
-        for (String part : raw.split("[；;]")) {
+        for (String part : raw.split("[；;\n]+")) {
             String c = part.trim();
             if (c.isEmpty()) continue;
             append("指令：" + c);
@@ -82,37 +131,99 @@ public class MainActivity extends Activity {
 
     private String execOne(String c) {
         try {
-            if (c.startsWith("等待 ")) { Thread.sleep(Long.parseLong(c.substring(3).trim())); return "等待完成"; }
-            if (c.startsWith("Shell ")) return ShizukuTools.shell(c.substring(6));
-            if (c.startsWith("開啟 ")) return launch(c.substring(3).trim());
+            String n = norm(c);
+            if (n.startsWith("shell")) return ShizukuTools.shell(c.replaceFirst("(?i)^\\s*shell\\s*", ""));
+            if (n.startsWith("等待")) { Thread.sleep(Long.parseLong(n.replace("等待", ""))); return "等待完成"; }
+
+            String app = findLaunchTarget(n);
+            if (app != null) return launch(app);
+
             AiosAccessibilityService s = AiosAccessibilityService.get();
             if (s == null) return "請先開啟 AIOS 無障礙服務";
-            if (c.equals("返回")) return s.back();
-            if (c.equals("首頁")) return s.home();
-            if (c.equals("最近任務")) return s.recents();
-            if (c.equals("通知欄")) return s.notifications();
-            if (c.equals("快捷設定")) return s.quickSettings();
-            if (c.equals("讀取畫面")) return s.dump();
-            if (c.startsWith("輸入 ")) return s.input(c.substring(3));
-            if (c.startsWith("點擊文字 ")) return s.clickText(c.substring(5));
-            String[] p = c.split("\\s+");
-            if (p[0].equals("點擊") && p.length >= 3) return s.tap(Float.parseFloat(p[1]), Float.parseFloat(p[2]));
-            if (p[0].equals("長按") && p.length >= 3) return s.longTap(Float.parseFloat(p[1]), Float.parseFloat(p[2]));
-            if (p[0].equals("滑動") && p.length >= 6) return s.swipe(Float.parseFloat(p[1]), Float.parseFloat(p[2]), Float.parseFloat(p[3]), Float.parseFloat(p[4]), Long.parseLong(p[5]));
-            return "未知指令";
+
+            if (hasAny(n, "返回", "回上一頁", "回上頁", "上一頁", "後退", "back")) return s.back();
+            if (hasAny(n, "首頁", "主畫面", "桌面", "回家", "home", "回到桌面")) return s.home();
+            if (hasAny(n, "最近任務", "多工", "後台", "后台", "recents")) return s.recents();
+            if (hasAny(n, "通知欄", "通知栏", "通知中心")) return s.notifications();
+            if (hasAny(n, "快捷設定", "快捷设置", "控制中心", "快速設定", "快速设置")) return s.quickSettings();
+            if (hasAny(n, "讀取畫面", "讀畫面", "看畫面", "看一下畫面", "畫面內容")) return s.dump();
+
+            String textToInput = extractAfterAny(c, "輸入", "输入", "打字", "幫我打", "帮我打");
+            if (textToInput != null && !textToInput.trim().isEmpty()) return s.input(cleanTextValue(textToInput));
+
+            String textToClick = extractAfterAny(c, "點擊文字", "点击文字", "點一下", "点一下", "按一下", "點", "点", "按");
+            if (textToClick != null && !textToClick.trim().isEmpty() && !looksLikeCoordinate(textToClick)) return s.clickText(cleanTextValue(textToClick));
+
+            float[] xy = extractTwoNumbers(c);
+            if (xy != null && hasAny(n, "點擊", "点击", "點一下", "点一下", "按一下", "tap")) return s.tap(xy[0], xy[1]);
+            if (xy != null && hasAny(n, "長按", "长按", "longpress")) return s.longTap(xy[0], xy[1]);
+
+            float[] swipe = extractFiveNumbers(c);
+            if (swipe != null && hasAny(n, "滑動", "滑动", "swipe")) return s.swipe(swipe[0], swipe[1], swipe[2], swipe[3], (long) swipe[4]);
+
+            return "聽不懂：" + c + "\n我目前能懂開 App、返回、首頁、通知欄、輸入、點文字、點座標。";
         } catch (Throwable t) { return "執行失敗：" + t.getMessage(); }
     }
 
+    private boolean hasAny(String n, String... keys) {
+        for (String k : keys) if (n.contains(norm(k))) return true;
+        return false;
+    }
+
+    private String findLaunchTarget(String n) {
+        if (!(n.contains("打開") || n.contains("幫我打開") || n.contains("啟動") || n.contains("启动") || n.contains("open"))) return null;
+        for (String key : appMap.keySet()) if (n.contains(norm(key))) return key;
+        return null;
+    }
+
+    private String extractAfterAny(String raw, String... prefixes) {
+        for (String p : prefixes) {
+            int i = raw.indexOf(p);
+            if (i >= 0) return raw.substring(i + p.length()).trim();
+        }
+        return null;
+    }
+
+    private String cleanTextValue(String s) {
+        return s.replaceFirst("^[：:，,\s]+", "").replaceAll("[。\s]+$", "");
+    }
+
+    private boolean looksLikeCoordinate(String s) { return extractTwoNumbers(s) != null; }
+
+    private float[] extractTwoNumbers(String s) {
+        Matcher m = Pattern.compile("(-?\\d+(?:\\.\\d+)?)").matcher(s);
+        float[] r = new float[2]; int i = 0;
+        while (m.find() && i < 2) r[i++] = Float.parseFloat(m.group(1));
+        return i >= 2 ? r : null;
+    }
+
+    private float[] extractFiveNumbers(String s) {
+        Matcher m = Pattern.compile("(-?\\d+(?:\\.\\d+)?)").matcher(s);
+        float[] r = new float[5]; int i = 0;
+        while (m.find() && i < 5) r[i++] = Float.parseFloat(m.group(1));
+        return i >= 5 ? r : null;
+    }
+
     private String launch(String name) {
-        String pkg = name;
-        if (name.equalsIgnoreCase("line")) pkg = "jp.naver.line.android";
-        else if (name.equals("原神")) pkg = "com.miHoYo.Yuanshen";
-        else if (name.equalsIgnoreCase("gmail")) pkg = "com.google.android.gm";
-        else if (name.equalsIgnoreCase("gemini")) pkg = "com.google.android.apps.bard";
-        else if (name.equals("設定")) pkg = "com.android.settings";
+        String key = norm(name);
+        String pkg = appMap.get(key);
+        if (pkg == null) {
+            for (String k : appMap.keySet()) if (key.contains(norm(k))) { pkg = appMap.get(k); name = k; break; }
+        }
+        if (pkg == null) pkg = name;
         Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
         if (i == null && pkg.equals("com.miHoYo.Yuanshen")) i = getPackageManager().getLaunchIntentForPackage("com.miHoYo.GenshinImpact");
-        if (i == null) { Toast.makeText(this, "找不到 App：" + name, Toast.LENGTH_SHORT).show(); return "找不到 App：" + name; }
+        if (i == null && pkg.equals("com.google.android.apps.bard")) i = getPackageManager().getLaunchIntentForPackage("com.google.android.googlequicksearchbox");
+        if (i == null) {
+            try {
+                Intent market = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + pkg));
+                market.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(market);
+                return "找不到 App，已嘗試開商店：" + name;
+            } catch (Throwable ignored) {}
+            Toast.makeText(this, "找不到 App：" + name, Toast.LENGTH_SHORT).show();
+            return "找不到 App：" + name;
+        }
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(i);
         return "已開啟：" + name;
