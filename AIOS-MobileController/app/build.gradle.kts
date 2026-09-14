@@ -8,8 +8,8 @@ android {
         applicationId = "com.capybara.aios"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4-github-alpha"
+        versionCode = 5
+        versionName = "0.5-fuzzy-command-alpha"
     }
 }
 
