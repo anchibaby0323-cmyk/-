@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AIOS 手機控制中心</string>
+    <string name="accessibility_name">AIOS 自動操控服務</string>
+    <string name="accessibility_desc">允許 AIOS 執行你輸入的點擊、返回、首頁、輸入文字等自動化指令。</string>
+</resources>
