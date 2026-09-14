@@ -1,0 +1,3 @@
+<resources>
+    <string name="accessibility_description">只有您開啟 Bridge 並點選「讀取」時，才會讀取官方 ChatGPT 或 Gemini 目前可見文字。排除密碼與輸入欄位；內容不儲存、不上傳。您編輯並確認後才分享給 Minis。Bridge 不操作其他 App、不繞過鎖屏、支付或系統限制。</string>
+</resources>

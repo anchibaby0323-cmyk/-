@@ -12,3 +12,5 @@ android {
         versionName = "1.0-alpha"
     }
 }
+
+dependencies { testImplementation("junit:junit:4.13.2") }
