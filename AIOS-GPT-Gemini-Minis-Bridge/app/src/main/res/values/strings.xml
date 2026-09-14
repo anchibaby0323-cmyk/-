@@ -1,3 +1,3 @@
 <resources>
-    <string name="accessibility_description">只有您開啟 Bridge 並點選「讀取」時，才會讀取官方 ChatGPT 或 Gemini 目前可見文字。排除密碼與輸入欄位；內容不儲存、不上傳。您編輯並確認後才分享給 Minis。Bridge 不操作其他 App、不繞過鎖屏、支付或系統限制。</string>
+    <string name="accessibility_description">只有您按開始後，才會在本次最長 15 分鐘內自動讀取官方 ChatGPT 或 Gemini 可見文字。開啟自動交接時，新的完整標記任務穩定後倒數 5 秒，自動分享給 Minis。浮條可取消或停止，鎖屏即停止。排除密碼與輸入欄位，不讀私有資料，不繞過安全確認。</string>
 </resources>
