@@ -4,7 +4,7 @@
         <package android:name="com.openai.chatgpt" />
         <package android:name="com.google.android.apps.bard" />
     </queries>
-    <application android:label="GPT・Gemini → Minis" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:supportsRtl="true">
+    <application android:label="GPT・Gemini → Minis" android:icon="@drawable/ic_bridge" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

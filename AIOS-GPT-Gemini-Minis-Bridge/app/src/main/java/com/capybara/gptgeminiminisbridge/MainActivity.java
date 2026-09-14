@@ -11,6 +11,7 @@ import android.widget.*;
 public class MainActivity extends Activity {
     private Switch toggle;
     private TextView status;
+    private boolean syncing;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
@@ -29,6 +30,7 @@ public class MainActivity extends Activity {
         toggle = new Switch(this); toggle.setText("啟用手動 Bridge（顯示浮動按鈕）"); column.addView(toggle);
         toggle.setChecked(getSharedPreferences("bridge", MODE_PRIVATE).getBoolean("enabled", false));
         toggle.setOnCheckedChangeListener((button, checked) -> {
+            if (syncing) return;
             if (checked) new AlertDialog.Builder(this).setTitle("允許手動讀取？")
                 .setMessage("點選讀取後，Bridge 可查看目前可見對話；您再次確認才分享給 Minis。請勿分享帳密或不需要的私人內容。")
                 .setPositiveButton("同意並啟用", (d,w) -> enable(true))
@@ -46,6 +48,9 @@ public class MainActivity extends Activity {
     }
     @Override public void onResume() {
         super.onResume();
+        syncing = true;
+        toggle.setChecked(getSharedPreferences("bridge", MODE_PRIVATE).getBoolean("enabled", false));
+        syncing = false;
         status.setText("\n無障礙服務：" + (BridgeService.instance == null ? "尚未連線" : "已連線")
             + "\nMinis 文字分享入口：" + (BridgeService.shareIntent().resolveActivity(getPackageManager()) == null ? "未找到，請安裝 Minis" : "可用"));
     }
