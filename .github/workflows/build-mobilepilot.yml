@@ -33,6 +33,6 @@ jobs:
         run: gradle :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: MobilePilot-0.2.0-bridge-debug
+          name: MobilePilot-0.3.0-permission-link-debug
           path: mobilepilot/project/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
