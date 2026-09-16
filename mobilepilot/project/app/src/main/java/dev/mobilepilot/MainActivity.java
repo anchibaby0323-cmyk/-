@@ -11,6 +11,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import dev.mobilepilot.access.MobileAccessibilityService;
 import dev.mobilepilot.core.AppTools;
+import dev.mobilepilot.core.PermissionState;
+import dev.mobilepilot.notify.MobileNotificationListener;
 import dev.mobilepilot.overlay.FloatingBubbleService;
 import dev.mobilepilot.server.LocalMcpService;
 import dev.mobilepilot.shizuku.ShizukuBridge;
@@ -54,8 +56,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void refresh() {
         boolean access = MobileAccessibilityService.get() != null;
+        boolean notificationAccess = PermissionState.notificationListenerEnabled(this);
         boolean overlay = Settings.canDrawOverlays(this);
         status.setText("無障礙：" + (access ? "✅" : "❌") +
+                "\n通知存取：" + (notificationAccess ? "✅" : "❌") +
+                "\n通知服務：" + (MobileNotificationListener.isConnected() ? "✅ 已連線" : "❌ 未連線") +
                 "\nShizuku：" + (ShizukuBridge.isRunning() ? "✅ 運作中" : "❌ 未運作") +
                 "\nShizuku 授權：" + (ShizukuBridge.isGranted() ? "✅" : "❌") +
                 "\n浮窗：" + (overlay ? "✅" : "❌") +
