@@ -20,6 +20,7 @@ public final class ToolRegistry {
     public JSONArray listTools() throws Exception {
         JSONArray a = new JSONArray();
         a.put(tool("status", "取得 MobilePilot / Accessibility / Shizuku 狀態", new JSONObject(), null));
+        a.put(tool("permission_status", "取得無障礙、通知存取與 Shizuku 的授權狀態", new JSONObject(), null));
         a.put(tool("snapshot", "讀取目前 Android 畫面 UI tree", new JSONObject()
                 .put("limit", new JSONObject().put("type","integer").put("default",200)), null));
         a.put(tool("tap_text", "依畫面文字點擊", new JSONObject()
@@ -74,7 +75,16 @@ public final class ToolRegistry {
                             .put("accessibility", a != null)
                             .put("shizuku_running", ShizukuBridge.isRunning())
                             .put("shizuku_granted", ShizukuBridge.isGranted())
+                            .put("notification_listener_enabled", PermissionState.notificationListenerEnabled(context))
+                            .put("notification_listener_connected", MobileNotificationListener.isConnected())
                             .put("package", a == null ? "" : a.snapshot(1).optString("package"));
+                case "permission_status":
+                    return r.put("ok", true)
+                            .put("accessibility", a != null)
+                            .put("notification_listener_enabled", PermissionState.notificationListenerEnabled(context))
+                            .put("notification_listener_connected", MobileNotificationListener.isConnected())
+                            .put("shizuku_running", ShizukuBridge.isRunning())
+                            .put("shizuku_granted", ShizukuBridge.isGranted());
                 case "snapshot":
                     if (a == null) return err("Accessibility 未連線");
                     return a.snapshot(Math.min(1000, Math.max(1, args.optInt("limit", 200))));
